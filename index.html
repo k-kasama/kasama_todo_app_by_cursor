@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TODO アプリ</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-check-circle"></i> TODO アプリ</h1>
+            <p class="subtitle">タスクを管理して、効率的に作業を進めましょう</p>
+        </header>
+
+        <div class="todo-container">
+            <div class="input-section">
+                <div class="input-group">
+                    <input type="text" id="todoInput" placeholder="新しいタスクを入力してください..." maxlength="100">
+                    <input type="number" id="todoTime" placeholder="時間" min="0.5" max="24" step="0.5" class="time-input">
+                    <input type="date" id="todoDeadline" class="deadline-input">
+                    <button id="addTodo" class="add-btn">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="email-section">
+                    <button id="emailImportBtn" class="email-btn">
+                        <i class="fas fa-envelope"></i> メールからTODOを作成
+                    </button>
+                    <button id="scheduleBtn" class="schedule-btn">
+                        <i class="fas fa-calendar-alt"></i> スケジュール自動割り振り
+                    </button>
+                </div>
+            </div>
+
+            <div class="filters">
+                <button class="filter-btn active" data-filter="all">すべて</button>
+                <button class="filter-btn" data-filter="active">未完了</button>
+                <button class="filter-btn" data-filter="completed">完了済み</button>
+            </div>
+
+            <div class="todo-list" id="todoList">
+                <!-- TODOアイテムがここに動的に追加されます -->
+            </div>
+
+            <div class="todo-stats" id="todoStats">
+                <span class="stats-text">タスク: <span id="totalCount">0</span></span>
+                <span class="stats-text">完了: <span id="completedCount">0</span></span>
+                <span class="stats-text">未完了: <span id="activeCount">0</span></span>
+                <span class="stats-text">総時間: <span id="totalTime">0</span>時間</span>
+            </div>
+
+            <div class="actions">
+                <button id="clearCompleted" class="action-btn">
+                    <i class="fas fa-trash"></i> 完了済みを削除
+                </button>
+                <button id="clearAll" class="action-btn danger">
+                    <i class="fas fa-trash-alt"></i> すべて削除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- メールインポートモーダル -->
+    <div id="emailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-envelope"></i> メールからTODOを作成</h2>
+                <button class="close-btn" id="closeEmailModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="email-input-section">
+                    <label for="emailSubject">件名:</label>
+                    <input type="text" id="emailSubject" placeholder="メールの件名を入力してください">
+                    
+                    <label for="emailBody">本文:</label>
+                    <textarea id="emailBody" placeholder="メールの本文を入力してください（TODOアイテムを自動で抽出します）" rows="8"></textarea>
+                    
+                    <div class="email-actions">
+                        <button id="analyzeEmail" class="analyze-btn">
+                            <i class="fas fa-magic"></i> 解析してTODOを作成
+                        </button>
+                        <button id="clearEmail" class="clear-btn">
+                            <i class="fas fa-eraser"></i> クリア
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="extracted-todos" id="extractedTodos">
+                    <!-- 抽出されたTODOアイテムがここに表示されます -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- スケジュールモーダル -->
+    <div id="scheduleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-calendar-alt"></i> スケジュール自動割り振り</h2>
+                <button class="close-btn" id="closeScheduleModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="schedule-settings">
+                    <h3>設定</h3>
+                    <div class="setting-group">
+                        <label for="workHoursPerDay">1日の作業時間:</label>
+                        <input type="number" id="workHoursPerDay" value="6" min="1" max="24" step="0.5">
+                        <span>時間</span>
+                    </div>
+                    <div class="setting-group">
+                        <label for="startDate">開始日:</label>
+                        <input type="date" id="startDate">
+                    </div>
+                    <button id="generateSchedule" class="generate-btn">
+                        <i class="fas fa-magic"></i> スケジュール生成
+                    </button>
+                </div>
+                
+                <div class="schedule-result" id="scheduleResult">
+                    <!-- スケジュール結果がここに表示されます -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
