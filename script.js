@@ -240,6 +240,19 @@ class TodoApp {
         this.bindTodoEvents();
     }
 
+    setFilter(filter) {
+        this.filter = filter;
+        
+        // フィルターボタンのアクティブ状態を更新
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+        
+        // リストを再描画
+        this.render();
+    }
+
     getFilteredTodos() {
         switch (this.filter) {
             case 'active':
