@@ -199,6 +199,13 @@ class TodoApp {
     }
 
     async deleteTodoById(id) {
+        const todo = this.todos.find(t => t.id === id);
+        if (!todo) return;
+
+        // 確認ダイアログ
+        const confirmed = confirm(`「${todo.text}」を削除しますか？`);
+        if (!confirmed) return;
+
         try {
             await this.deleteTodo(id);
             this.render();
@@ -209,18 +216,96 @@ class TodoApp {
         }
     }
 
-    async editTodo(id, newText) {
+    openEditModal(id) {
         const todo = this.todos.find(t => t.id === id);
-        if (todo && newText.trim() !== '') {
-            todo.text = newText.trim();
-            try {
-                await this.updateTodo(todo);
-                this.render();
-                this.showNotification('TODOが更新されました！');
-            } catch (error) {
-                console.error('Error updating todo:', error);
-                this.showNotification('TODOの更新に失敗しました', 'error');
+        if (!todo) return;
+
+        // モーダルに現在の値を設定
+        document.getElementById('editText').value = todo.text;
+        document.getElementById('editCategory').value = todo.category || 'major';
+        document.getElementById('editPriority').value = todo.priority || 'medium';
+        document.getElementById('editTime').value = todo.time || '';
+        document.getElementById('editDeadline').value = todo.deadline || '';
+        
+        // 親項目の選択肢を更新
+        this.updateEditParentOptions(todo.category, todo.parentId);
+        
+        // 編集対象のIDを保存
+        document.getElementById('editModal').dataset.editId = id;
+        
+        // モーダルを表示
+        document.getElementById('editModal').style.display = 'block';
+    }
+
+    closeEditModal() {
+        document.getElementById('editModal').style.display = 'none';
+        document.getElementById('editModal').dataset.editId = '';
+    }
+
+    updateEditParentOptions(category, currentParentId = null) {
+        const parentSelect = document.getElementById('editParent');
+        parentSelect.innerHTML = '<option value="">親項目を選択</option>';
+        
+        if (category === 'major') {
+            parentSelect.style.display = 'none';
+            return;
+        }
+        
+        parentSelect.style.display = 'block';
+        
+        let availableParents = [];
+        if (category === 'middle') {
+            availableParents = this.todos.filter(t => t.category === 'major');
+        } else if (category === 'minor') {
+            availableParents = this.todos.filter(t => t.category === 'middle');
+        }
+        
+        availableParents.forEach(parent => {
+            const option = document.createElement('option');
+            option.value = parent.id;
+            option.textContent = parent.text;
+            if (currentParentId && parent.id === currentParentId) {
+                option.selected = true;
             }
+            parentSelect.appendChild(option);
+        });
+    }
+
+    async saveEdit() {
+        const editId = document.getElementById('editModal').dataset.editId;
+        if (!editId) return;
+
+        const todo = this.todos.find(t => t.id === parseInt(editId));
+        if (!todo) return;
+
+        const newText = document.getElementById('editText').value.trim();
+        const newCategory = document.getElementById('editCategory').value;
+        const newParentId = document.getElementById('editParent').value ? parseInt(document.getElementById('editParent').value) : null;
+        const newPriority = document.getElementById('editPriority').value;
+        const newTime = parseFloat(document.getElementById('editTime').value) || 0;
+        const newDeadline = document.getElementById('editDeadline').value || '';
+
+        if (newText === '') {
+            this.showNotification('タスク名を入力してください', 'error');
+            return;
+        }
+
+        // タスクを更新
+        todo.text = newText;
+        todo.category = newCategory;
+        todo.parentId = newParentId;
+        todo.priority = newPriority;
+        todo.time = newTime;
+        todo.deadline = newDeadline;
+
+        try {
+            await this.updateTodo(todo);
+            this.closeEditModal();
+            this.render();
+            this.showNotification('TODOが更新されました！');
+        } catch (error) {
+            console.error('Error updating todo:', error);
+            this.showNotification('TODOの更新に失敗しました', 'error');
         }
     }
 
@@ -343,10 +428,10 @@ class TodoApp {
                 ${timeBadge}
                 ${deadlineBadge}
                 <div class="todo-actions">
-                    <button class="todo-btn edit" onclick="todoApp.editTodo(${todo.id})" title="編集">
+                    <button class="todo-btn edit" onclick="todoApp.openEditModal(${todo.id})" title="編集">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="todo-btn delete" onclick="todoApp.deleteTodo(${todo.id})" title="削除">
+                    <button class="todo-btn delete" onclick="todoApp.deleteTodoById(${todo.id})" title="削除">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -1007,12 +1092,28 @@ class TodoApp {
             }
         });
         
+        document.getElementById('editModal').addEventListener('click', (e) => {
+            if (e.target.id === 'editModal') {
+                this.closeEditModal();
+            }
+        });
+        
         // 開始日のデフォルト値を設定
         document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
         
         // カテゴリ選択時の親項目更新
         document.getElementById('todoCategory').addEventListener('change', (e) => {
             this.updateParentOptions(e.target.value);
+        });
+        
+        // 編集モーダルのイベントリスナー
+        document.getElementById('closeEditModal').addEventListener('click', () => this.closeEditModal());
+        document.getElementById('saveEdit').addEventListener('click', () => this.saveEdit());
+        document.getElementById('cancelEdit').addEventListener('click', () => this.closeEditModal());
+        
+        // 編集モーダルのカテゴリ変更時の親項目更新
+        document.getElementById('editCategory').addEventListener('change', (e) => {
+            this.updateEditParentOptions(e.target.value);
         });
     }
 
