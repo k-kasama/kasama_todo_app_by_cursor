@@ -111,6 +111,18 @@
                 <div class="extracted-todos" id="extractedTodos">
                     <!-- 抽出されたTODOアイテムがここに表示されます -->
                 </div>
+                
+                <div class="extracted-todos-actions" id="extractedTodosActions" style="display: none;">
+                    <button id="addNewTodo" class="add-new-btn">
+                        <i class="fas fa-plus"></i> 新しいTODOを追加
+                    </button>
+                    <button id="editExtractedTodos" class="edit-extracted-btn">
+                        <i class="fas fa-edit"></i> 抽出結果を編集
+                    </button>
+                    <button id="confirmExtractedTodos" class="confirm-btn">
+                        <i class="fas fa-check"></i> 確定して追加
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -192,6 +204,34 @@
                             <i class="fas fa-save"></i> 保存
                         </button>
                         <button id="cancelEdit" class="cancel-btn">
+                            <i class="fas fa-times"></i> キャンセル
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 抽出結果編集モーダル -->
+    <div id="extractedEditModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-edit"></i> 抽出結果を編集</h2>
+                <button class="close-btn" id="closeExtractedEditModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="extracted-edit-section">
+                    <div class="extracted-edit-todos" id="extractedEditTodos">
+                        <!-- 編集可能なTODOアイテムがここに表示されます -->
+                    </div>
+                    
+                    <div class="extracted-edit-actions">
+                        <button id="saveExtractedEdit" class="save-btn">
+                            <i class="fas fa-save"></i> 保存
+                        </button>
+                        <button id="cancelExtractedEdit" class="cancel-btn">
                             <i class="fas fa-times"></i> キャンセル
                         </button>
                     </div>

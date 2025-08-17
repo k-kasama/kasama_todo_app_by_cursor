@@ -6,6 +6,7 @@ class TodoApp {
         this.dbVersion = 2; // バージョンを上げてスキーマを更新
         this.storeName = 'todos';
         this.db = null;
+        this.extractedTodos = []; // 抽出されたTODOアイテムを保存
         
         this.init();
     }
@@ -596,7 +597,25 @@ class TodoApp {
         const todos = [];
         const fullText = `${subject}\n${body}`;
         
-        // TODOキーワードパターン
+        // 全体的な期限を抽出
+        const globalDeadline = this.extractGlobalDeadline(fullText);
+        
+        // 件名から直接TODOを抽出
+        if (subject && subject.trim()) {
+            const subjectText = subject.trim();
+            // 件名が「件名：」で始まっていない場合は、そのままTODOとして扱う
+            if (!subjectText.match(/^件名[：:]/)) {
+                todos.push({
+                    text: subjectText,
+                    priority: 'medium',
+                    time: 0,
+                    deadline: globalDeadline,
+                    lineNumber: 0
+                });
+            }
+        }
+        
+        // TODOキーワードパターン（拡張）
         const todoPatterns = [
             /TODO[:\s]*([^\n\r]+)/gi,
             /To Do[:\s]*([^\n\r]+)/gi,
@@ -607,7 +626,9 @@ class TodoApp {
             /確認[:\s]*([^\n\r]+)/gi,
             /対応[:\s]*([^\n\r]+)/gi,
             /検討[:\s]*([^\n\r]+)/gi,
-            /準備[:\s]*([^\n\r]+)/gi
+            /準備[:\s]*([^\n\r]+)/gi,
+            /件名[：:]\s*([^\n\r]+)/gi,
+            /件名[：:]\s*([^\n\r]+)/gi
         ];
 
         // 優先度キーワード
@@ -643,10 +664,10 @@ class TodoApp {
                 const match = line.match(pattern);
                 if (match) {
                     const todoText = match[1] ? match[1].trim() : line.replace(pattern, '').trim();
-                    if (todoText) {
+                    if (todoText && todoText.length > 2) {
                         const priority = this.determinePriority(line, priorityKeywords);
                         const time = this.extractTime(line, timePatterns);
-                        const deadline = this.extractDeadline(line, deadlinePatterns);
+                        const deadline = this.extractDeadline(line, deadlinePatterns) || globalDeadline;
                         
                         todos.push({
                             text: todoText,
@@ -666,7 +687,7 @@ class TodoApp {
                 if (todoText && todoText.length > 3) {
                     const priority = this.determinePriority(line, priorityKeywords);
                     const time = this.extractTime(line, timePatterns);
-                    const deadline = this.extractDeadline(line, deadlinePatterns);
+                    const deadline = this.extractDeadline(line, deadlinePatterns) || globalDeadline;
                     
                     todos.push({
                         text: todoText,
@@ -684,7 +705,7 @@ class TodoApp {
                 if (todoText && todoText.length > 3) {
                     const priority = this.determinePriority(line, priorityKeywords);
                     const time = this.extractTime(line, timePatterns);
-                    const deadline = this.extractDeadline(line, deadlinePatterns);
+                    const deadline = this.extractDeadline(line, deadlinePatterns) || globalDeadline;
                     
                     todos.push({
                         text: todoText,
@@ -697,12 +718,12 @@ class TodoApp {
             }
         });
 
-        // 重複を除去
+        // 重複を除去（より厳密に）
         const uniqueTodos = [];
         const seen = new Set();
         todos.forEach(todo => {
-            const key = todo.text.toLowerCase();
-            if (!seen.has(key)) {
+            const key = todo.text.toLowerCase().trim();
+            if (!seen.has(key) && key.length > 2) {
                 seen.add(key);
                 uniqueTodos.push(todo);
             }
@@ -719,6 +740,49 @@ class TodoApp {
             }
         }
         return 0;
+    }
+
+    extractGlobalDeadline(text) {
+        // 全体的な期限を抽出（日本語形式対応）
+        const deadlinePatterns = [
+            /期限[：:]\s*(\d{4})年(\d{1,2})月(\d{1,2})日/,
+            /期限[：:]\s*(\d{1,2})月(\d{1,2})日/,
+            /締切[：:]\s*(\d{4})年(\d{1,2})月(\d{1,2})日/,
+            /締切[：:]\s*(\d{1,2})月(\d{1,2})日/,
+            /期限[：:]\s*(\d{4}[-\/]\d{1,2}[-\/]\d{1,2})/,
+            /期限[：:]\s*(\d{1,2}[-\/]\d{1,2})/,
+            /締切[：:]\s*(\d{4}[-\/]\d{1,2}[-\/]\d{1,2})/,
+            /締切[：:]\s*(\d{1,2}[-\/]\d{1,2})/
+        ];
+
+        for (const pattern of deadlinePatterns) {
+            const match = text.match(pattern);
+            if (match) {
+                if (match.length === 4) {
+                    // 日本語形式: 2025年8月20日
+                    const year = match[1];
+                    const month = match[2].padStart(2, '0');
+                    const day = match[3].padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                } else if (match.length === 3) {
+                    // 日本語形式: 8月20日
+                    const currentYear = new Date().getFullYear();
+                    const month = match[1].padStart(2, '0');
+                    const day = match[2].padStart(2, '0');
+                    return `${currentYear}-${month}-${day}`;
+                } else {
+                    // 数字形式
+                    const dateStr = match[1];
+                    if (dateStr.match(/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/)) {
+                        return dateStr.replace(/\//g, '-');
+                    } else if (dateStr.match(/^\d{1,2}[-\/]\d{1,2}$/)) {
+                        const currentYear = new Date().getFullYear();
+                        return `${currentYear}-${dateStr.replace(/\//g, '-')}`;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     extractDeadline(text, patterns) {
@@ -754,16 +818,18 @@ class TodoApp {
 
     displayExtractedTodos(todos) {
         const container = document.getElementById('extractedTodos');
+        this.extractedTodos = todos; // 抽出結果を保存
         
         if (todos.length === 0) {
             container.innerHTML = '<p style="text-align: center; color: #6b7280; font-style: italic;">TODOアイテムが見つかりませんでした</p>';
+            document.getElementById('extractedTodosActions').style.display = 'none';
             return;
         }
 
         const header = `
             <div class="extracted-todos-header">
                 <h3>抽出されたTODOアイテム (${todos.length}個)</h3>
-                <button id="addSelectedTodos" class="add-selected-btn" onclick="todoApp.addSelectedTodos()">
+                <button id="addSelectedTodos" class="add-selected-btn">
                     <i class="fas fa-plus"></i> 選択したアイテムを追加
                 </button>
             </div>
@@ -772,7 +838,7 @@ class TodoApp {
         const todoItems = todos.map((todo, index) => `
             <div class="extracted-todo-item">
                 <input type="checkbox" id="todo-${index}" checked>
-                <div class="todo-text">${this.escapeHtml(todo.text)}</div>
+                <label for="todo-${index}" class="todo-text">${this.escapeHtml(todo.text)}</label>
                 <span class="todo-priority ${todo.priority}">${this.getPriorityLabel(todo.priority)}</span>
                 ${todo.time ? `<span class="todo-time">${todo.time}時間</span>` : ''}
                 ${todo.deadline ? `<span class="todo-deadline">${this.formatDate(todo.deadline)}</span>` : ''}
@@ -780,6 +846,15 @@ class TodoApp {
         `).join('');
 
         container.innerHTML = header + todoItems;
+        
+        // アクションボタンを表示
+        document.getElementById('extractedTodosActions').style.display = 'flex';
+        
+        // ボタンにイベントリスナーを設定
+        const addButton = document.getElementById('addSelectedTodos');
+        if (addButton) {
+            addButton.addEventListener('click', () => this.addSelectedTodos());
+        }
     }
 
     getPriorityLabel(priority) {
@@ -828,41 +903,158 @@ class TodoApp {
         });
     }
 
-    addSelectedTodos() {
+    async addSelectedTodos() {
         const checkboxes = document.querySelectorAll('#extractedTodos input[type="checkbox"]:checked');
-        const addedCount = 0;
+        
+        if (checkboxes.length === 0) {
+            this.showNotification('追加するアイテムを選択してください', 'warning');
+            return;
+        }
 
-        checkboxes.forEach(checkbox => {
+        let addedCount = 0;
+
+        for (const checkbox of checkboxes) {
             const todoItem = checkbox.closest('.extracted-todo-item');
+            if (!todoItem) continue;
+
             const todoText = todoItem.querySelector('.todo-text').textContent;
             const priorityElement = todoItem.querySelector('.todo-priority');
             const timeElement = todoItem.querySelector('.todo-time');
             const deadlineElement = todoItem.querySelector('.todo-deadline');
             
-            const priority = priorityElement ? priorityElement.textContent : null;
-            const time = timeElement ? parseFloat(timeElement.textContent) : 0;
-            const deadline = deadlineElement ? this.parseDateFromDisplay(deadlineElement.textContent) : null;
+            // 優先度の処理
+            let priority = 'medium';
+            if (priorityElement) {
+                const priorityText = priorityElement.textContent;
+                if (priorityText === '高') priority = 'high';
+                else if (priorityText === '低') priority = 'low';
+            }
+            
+            const time = timeElement ? parseFloat(timeElement.textContent.replace('時間', '')) : 0;
+            const deadline = deadlineElement ? this.parseDateFromDisplay(deadlineElement.textContent) : '';
 
             // TODOアイテムを追加
             const todo = {
-                id: Date.now() + Math.random(),
                 text: todoText,
                 completed: false,
-                createdAt: new Date().toISOString(),
+                category: 'major', // デフォルトは大項目
+                parentId: null,
                 priority: priority,
                 time: time,
-                deadline: deadline
+                deadline: deadline,
+                createdAt: new Date().toISOString()
             };
             
-            this.todos.unshift(todo);
-        });
+            try {
+                await this.saveTodo(todo);
+                addedCount++;
+            } catch (error) {
+                console.error('Error adding todo:', error);
+            }
+        }
 
-        this.saveTodos();
         this.render();
         this.updateStats();
         this.closeEmailModal();
         
-        this.showNotification(`${checkboxes.length}個のTODOアイテムを追加しました`, 'success');
+        this.showNotification(`${addedCount}個のTODOアイテムを追加しました`, 'success');
+    }
+
+    // 抽出結果編集機能
+    openExtractedEditModal() {
+        if (this.extractedTodos.length === 0) {
+            this.showNotification('編集するTODOアイテムがありません', 'warning');
+            return;
+        }
+
+        this.displayExtractedEditTodos();
+        document.getElementById('extractedEditModal').style.display = 'block';
+    }
+
+    closeExtractedEditModal() {
+        document.getElementById('extractedEditModal').style.display = 'none';
+    }
+
+    displayExtractedEditTodos() {
+        const container = document.getElementById('extractedEditTodos');
+        
+        const todoItems = this.extractedTodos.map((todo, index) => `
+            <div class="extracted-edit-todo-item" data-index="${index}">
+                <input type="text" value="${this.escapeHtml(todo.text)}" placeholder="TODO内容" class="edit-todo-text">
+                <select class="edit-todo-priority">
+                    <option value="high" ${todo.priority === 'high' ? 'selected' : ''}>高</option>
+                    <option value="medium" ${todo.priority === 'medium' ? 'selected' : ''}>中</option>
+                    <option value="low" ${todo.priority === 'low' ? 'selected' : ''}>低</option>
+                </select>
+                <input type="number" value="${todo.time || ''}" placeholder="時間" min="0.5" max="24" step="0.5" class="edit-todo-time">
+                <input type="date" value="${todo.deadline || ''}" class="edit-todo-deadline">
+                <button class="remove-todo-btn" onclick="todoApp.removeExtractedTodo(${index})" title="削除">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `).join('');
+
+        container.innerHTML = todoItems;
+    }
+
+    removeExtractedTodo(index) {
+        this.extractedTodos.splice(index, 1);
+        this.displayExtractedEditTodos();
+    }
+
+    addNewExtractedTodo() {
+        const newTodo = {
+            text: '',
+            priority: 'medium',
+            time: 0,
+            deadline: '',
+            lineNumber: this.extractedTodos.length + 1
+        };
+        
+        this.extractedTodos.push(newTodo);
+        this.displayExtractedEditTodos();
+        
+        // 新しく追加されたアイテムのテキストフィールドにフォーカス
+        const lastItem = document.querySelector('.extracted-edit-todo-item:last-child .edit-todo-text');
+        if (lastItem) {
+            lastItem.focus();
+        }
+    }
+
+    saveExtractedEdit() {
+        const todoItems = document.querySelectorAll('.extracted-edit-todo-item');
+        const updatedTodos = [];
+
+        todoItems.forEach((item, index) => {
+            const text = item.querySelector('.edit-todo-text').value.trim();
+            const priority = item.querySelector('.edit-todo-priority').value;
+            const time = parseFloat(item.querySelector('.edit-todo-time').value) || 0;
+            const deadline = item.querySelector('.edit-todo-deadline').value;
+
+            if (text) {
+                updatedTodos.push({
+                    text: text,
+                    priority: priority,
+                    time: time,
+                    deadline: deadline,
+                    lineNumber: index + 1
+                });
+            }
+        });
+
+        this.extractedTodos = updatedTodos;
+        this.displayExtractedTodos(updatedTodos);
+        this.closeExtractedEditModal();
+        this.showNotification('抽出結果を更新しました', 'success');
+    }
+
+    confirmExtractedTodos() {
+        if (this.extractedTodos.length === 0) {
+            this.showNotification('追加するTODOアイテムがありません', 'warning');
+            return;
+        }
+
+        this.addSelectedTodos();
     }
 
     // スケジュール機能のメソッド
@@ -1074,6 +1266,23 @@ class TodoApp {
         document.getElementById('analyzeEmail').addEventListener('click', () => this.analyzeEmail());
         document.getElementById('clearEmail').addEventListener('click', () => this.clearEmailForm());
         
+        // メールモーダル内のイベント委譲
+        document.getElementById('emailModal').addEventListener('click', (e) => {
+            if (e.target.id === 'addSelectedTodos' || e.target.closest('#addSelectedTodos')) {
+                this.addSelectedTodos();
+            }
+        });
+        
+        // 抽出結果アクションボタンのイベントリスナー
+        document.getElementById('addNewTodo').addEventListener('click', () => this.addNewExtractedTodo());
+        document.getElementById('editExtractedTodos').addEventListener('click', () => this.openExtractedEditModal());
+        document.getElementById('confirmExtractedTodos').addEventListener('click', () => this.confirmExtractedTodos());
+        
+        // 抽出結果編集モーダルのイベントリスナー
+        document.getElementById('closeExtractedEditModal').addEventListener('click', () => this.closeExtractedEditModal());
+        document.getElementById('saveExtractedEdit').addEventListener('click', () => this.saveExtractedEdit());
+        document.getElementById('cancelExtractedEdit').addEventListener('click', () => this.closeExtractedEditModal());
+        
         // スケジュール機能
         document.getElementById('scheduleBtn').addEventListener('click', () => this.openScheduleModal());
         document.getElementById('closeScheduleModal').addEventListener('click', () => this.closeScheduleModal());
@@ -1095,6 +1304,12 @@ class TodoApp {
         document.getElementById('editModal').addEventListener('click', (e) => {
             if (e.target.id === 'editModal') {
                 this.closeEditModal();
+            }
+        });
+        
+        document.getElementById('extractedEditModal').addEventListener('click', (e) => {
+            if (e.target.id === 'extractedEditModal') {
+                this.closeExtractedEditModal();
             }
         });
         
