@@ -19,6 +19,15 @@
             <div class="input-section">
                 <div class="input-group">
                     <input type="text" id="todoInput" placeholder="新しいタスクを入力してください..." maxlength="100">
+                    <select id="todoCategory" class="category-input">
+                        <option value="">カテゴリ</option>
+                        <option value="major">大項目</option>
+                        <option value="middle">中項目</option>
+                        <option value="minor">小項目</option>
+                    </select>
+                    <select id="todoParent" class="parent-input" style="display: none;">
+                        <option value="">親項目を選択</option>
+                    </select>
                     <select id="todoPriority" class="priority-input">
                         <option value="">優先度</option>
                         <option value="high">高</option>

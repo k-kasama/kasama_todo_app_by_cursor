@@ -3,7 +3,7 @@ class TodoApp {
         this.todos = [];
         this.filter = 'all';
         this.dbName = 'TodoAppDB';
-        this.dbVersion = 1;
+        this.dbVersion = 2; // バージョンを上げてスキーマを更新
         this.storeName = 'todos';
         this.db = null;
         
@@ -34,6 +34,17 @@ class TodoApp {
                     store.createIndex('completed', 'completed', { unique: false });
                     store.createIndex('priority', 'priority', { unique: false });
                     store.createIndex('deadline', 'deadline', { unique: false });
+                    store.createIndex('category', 'category', { unique: false });
+                    store.createIndex('parentId', 'parentId', { unique: false });
+                } else {
+                    // 既存のストアに新しいインデックスを追加
+                    const store = event.currentTarget.transaction.objectStore(this.storeName);
+                    if (!store.indexNames.contains('category')) {
+                        store.createIndex('category', 'category', { unique: false });
+                    }
+                    if (!store.indexNames.contains('parentId')) {
+                        store.createIndex('parentId', 'parentId', { unique: false });
+                    }
                 }
             };
         });
@@ -138,12 +149,14 @@ class TodoApp {
         });
     }
 
-    async addTodo(text, priority = 'medium', time = 0, deadline = '') {
+    async addTodo(text, category = 'major', parentId = null, priority = 'medium', time = 0, deadline = '') {
         if (text.trim() === '') return;
 
         const todo = {
             text: text.trim(),
             completed: false,
+            category: category,
+            parentId: parentId,
             priority: priority,
             time: parseInt(time) || 0,
             deadline: deadline,
@@ -166,6 +179,17 @@ class TodoApp {
             todo.completed = !todo.completed;
             try {
                 await this.updateTodo(todo);
+                
+                // 下位項目が完了した場合、上位項目も自動で完了する
+                if (todo.completed && todo.category !== 'major') {
+                    await this.checkParentCompletion(todo.parentId);
+                }
+                
+                // 上位項目が完了した場合、下位項目も自動で完了する
+                if (todo.completed && todo.category === 'major') {
+                    await this.completeChildTodos(todo.id);
+                }
+                
                 this.render();
             } catch (error) {
                 console.error('Error updating todo:', error);
@@ -253,6 +277,37 @@ class TodoApp {
         this.render();
     }
 
+    // 親項目の完了チェック
+    async checkParentCompletion(parentId) {
+        if (!parentId) return;
+        
+        const parent = this.todos.find(t => t.id === parentId);
+        if (!parent) return;
+        
+        const children = this.todos.filter(t => t.parentId === parentId);
+        const allChildrenCompleted = children.length > 0 && children.every(child => child.completed);
+        
+        if (allChildrenCompleted && !parent.completed) {
+            parent.completed = true;
+            await this.updateTodo(parent);
+            
+            // さらに上位の親項目もチェック
+            if (parent.parentId) {
+                await this.checkParentCompletion(parent.parentId);
+            }
+        }
+    }
+
+    // 子項目の完了処理
+    async completeChildTodos(parentId) {
+        const children = this.todos.filter(t => t.parentId === parentId && !t.completed);
+        
+        for (const child of children) {
+            child.completed = true;
+            await this.updateTodo(child);
+        }
+    }
+
     getFilteredTodos() {
         switch (this.filter) {
             case 'active':
@@ -273,14 +328,17 @@ class TodoApp {
     getTodoHTML(todo) {
         const completedClass = todo.completed ? 'completed' : '';
         const checkedClass = todo.completed ? 'checked' : '';
+        const categoryClass = todo.category || 'major';
         const priorityBadge = todo.priority ? `<span class="todo-priority ${todo.priority}">${this.getPriorityLabel(todo.priority)}</span>` : '';
         const timeBadge = todo.time ? `<span class="todo-time">${todo.time}時間</span>` : '';
         const deadlineBadge = todo.deadline ? `<span class="todo-deadline">${this.formatDate(todo.deadline)}</span>` : '';
+        const categoryBadge = `<span class="todo-category ${categoryClass}">${this.getCategoryLabel(todo.category)}</span>`;
         
         return `
-            <div class="todo-item ${completedClass}" data-id="${todo.id}">
+            <div class="todo-item ${completedClass} ${categoryClass}" data-id="${todo.id}">
                 <div class="todo-checkbox ${checkedClass}" onclick="todoApp.toggleTodo(${todo.id})"></div>
                 <div class="todo-text">${this.escapeHtml(todo.text)}</div>
+                ${categoryBadge}
                 ${priorityBadge}
                 ${timeBadge}
                 ${deadlineBadge}
@@ -648,6 +706,43 @@ class TodoApp {
         return labels[priority] || '中';
     }
 
+    getCategoryLabel(category) {
+        const labels = {
+            major: '大項目',
+            middle: '中項目',
+            minor: '小項目'
+        };
+        return labels[category] || '大項目';
+    }
+
+    updateParentOptions(category) {
+        const parentSelect = document.getElementById('todoParent');
+        parentSelect.innerHTML = '<option value="">親項目を選択</option>';
+        
+        if (category === 'major') {
+            parentSelect.style.display = 'none';
+            return;
+        }
+        
+        parentSelect.style.display = 'block';
+        
+        let availableParents = [];
+        if (category === 'middle') {
+            // 中項目の親は大項目のみ
+            availableParents = this.todos.filter(t => t.category === 'major');
+        } else if (category === 'minor') {
+            // 小項目の親は中項目のみ
+            availableParents = this.todos.filter(t => t.category === 'middle');
+        }
+        
+        availableParents.forEach(parent => {
+            const option = document.createElement('option');
+            option.value = parent.id;
+            option.textContent = parent.text;
+            parentSelect.appendChild(option);
+        });
+    }
+
     addSelectedTodos() {
         const checkboxes = document.querySelectorAll('#extractedTodos input[type="checkbox"]:checked');
         const addedCount = 0;
@@ -914,21 +1009,33 @@ class TodoApp {
         
         // 開始日のデフォルト値を設定
         document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
+        
+        // カテゴリ選択時の親項目更新
+        document.getElementById('todoCategory').addEventListener('change', (e) => {
+            this.updateParentOptions(e.target.value);
+        });
     }
 
     handleAddTodo() {
         const input = document.getElementById('todoInput');
+        const categoryInput = document.getElementById('todoCategory');
+        const parentInput = document.getElementById('todoParent');
         const priorityInput = document.getElementById('todoPriority');
         const timeInput = document.getElementById('todoTime');
         const deadlineInput = document.getElementById('todoDeadline');
+        
         const text = input.value.trim();
+        const category = categoryInput.value || 'major';
+        const parentId = parentInput.value ? parseInt(parentInput.value) : null;
         const priority = priorityInput.value || 'medium';
         const time = parseFloat(timeInput.value) || 0;
         const deadline = deadlineInput.value || '';
         
         if (text) {
-            this.addTodo(text, priority, time, deadline);
+            this.addTodo(text, category, parentId, priority, time, deadline);
             input.value = '';
+            categoryInput.value = '';
+            parentInput.value = '';
             priorityInput.value = '';
             timeInput.value = '';
             deadlineInput.value = '';

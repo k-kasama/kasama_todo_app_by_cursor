@@ -90,7 +90,9 @@ body {
 
 .time-input,
 .deadline-input,
-.priority-input {
+.priority-input,
+.category-input,
+.parent-input {
     border: none;
     background: transparent;
     padding: 0.75rem 0.5rem;
@@ -114,6 +116,26 @@ body {
 }
 
 .priority-input option {
+    background: white;
+    color: #333;
+}
+
+.category-input {
+    width: 100px;
+    cursor: pointer;
+}
+
+.category-input option {
+    background: white;
+    color: #333;
+}
+
+.parent-input {
+    width: 120px;
+    cursor: pointer;
+}
+
+.parent-input option {
     background: white;
     color: #333;
 }
@@ -189,6 +211,24 @@ body {
     margin-bottom: 0.75rem;
     transition: all 0.3s ease;
     border: 2px solid transparent;
+    position: relative;
+}
+
+.todo-item.major {
+    border-left: 4px solid #667eea;
+    background: #f0f4ff;
+}
+
+.todo-item.middle {
+    border-left: 4px solid #10b981;
+    margin-left: 2rem;
+    background: #f0fdf4;
+}
+
+.todo-item.minor {
+    border-left: 4px solid #f59e0b;
+    margin-left: 4rem;
+    background: #fffbeb;
 }
 
 .todo-item:hover {
@@ -682,6 +722,29 @@ body {
     color: #2563eb;
 }
 
+.todo-category {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+}
+
+.todo-category.major {
+    background: #e0e7ff;
+    color: #3730a3;
+}
+
+.todo-category.middle {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.todo-category.minor {
+    background: #fef3c7;
+    color: #92400e;
+}
+
 .extracted-todos-header {
     display: flex;
     justify-content: space-between;
@@ -762,7 +825,9 @@ body {
     
     .priority-input,
     .time-input,
-    .deadline-input {
+    .deadline-input,
+    .category-input,
+    .parent-input {
         min-width: 70px;
         font-size: 0.8rem;
     }
