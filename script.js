@@ -246,6 +246,12 @@ class TodoApp {
                 return this.todos.filter(t => !t.completed);
             case 'completed':
                 return this.todos.filter(t => t.completed);
+            case 'high':
+                return this.todos.filter(t => t.priority === 'high');
+            case 'medium':
+                return this.todos.filter(t => t.priority === 'medium');
+            case 'low':
+                return this.todos.filter(t => t.priority === 'low');
             default:
                 return this.todos;
         }
@@ -293,6 +299,21 @@ class TodoApp {
                 icon: 'fas fa-tasks',
                 title: '完了済みのタスクがありません',
                 message: 'まだタスクを完了していません'
+            },
+            high: {
+                icon: 'fas fa-exclamation-triangle',
+                title: '高優先度のタスクがありません',
+                message: '高優先度のタスクを追加してください'
+            },
+            medium: {
+                icon: 'fas fa-minus-circle',
+                title: '中優先度のタスクがありません',
+                message: '中優先度のタスクを追加してください'
+            },
+            low: {
+                icon: 'fas fa-arrow-down',
+                title: '低優先度のタスクがありません',
+                message: '低優先度のタスクを追加してください'
             }
         };
 
@@ -884,15 +905,18 @@ class TodoApp {
 
     handleAddTodo() {
         const input = document.getElementById('todoInput');
+        const priorityInput = document.getElementById('todoPriority');
         const timeInput = document.getElementById('todoTime');
         const deadlineInput = document.getElementById('todoDeadline');
         const text = input.value.trim();
+        const priority = priorityInput.value || 'medium';
         const time = parseFloat(timeInput.value) || 0;
         const deadline = deadlineInput.value || '';
         
         if (text) {
-            this.addTodo(text, 'medium', time, deadline);
+            this.addTodo(text, priority, time, deadline);
             input.value = '';
+            priorityInput.value = '';
             timeInput.value = '';
             deadlineInput.value = '';
             input.focus();

@@ -19,6 +19,12 @@
             <div class="input-section">
                 <div class="input-group">
                     <input type="text" id="todoInput" placeholder="新しいタスクを入力してください..." maxlength="100">
+                    <select id="todoPriority" class="priority-input">
+                        <option value="">優先度</option>
+                        <option value="high">高</option>
+                        <option value="medium">中</option>
+                        <option value="low">低</option>
+                    </select>
                     <input type="number" id="todoTime" placeholder="時間" min="0.5" max="24" step="0.5" class="time-input">
                     <input type="date" id="todoDeadline" class="deadline-input">
                     <button id="addTodo" class="add-btn">
@@ -39,6 +45,9 @@
                 <button class="filter-btn active" data-filter="all">すべて</button>
                 <button class="filter-btn" data-filter="active">未完了</button>
                 <button class="filter-btn" data-filter="completed">完了済み</button>
+                <button class="filter-btn" data-filter="high">高優先度</button>
+                <button class="filter-btn" data-filter="medium">中優先度</button>
+                <button class="filter-btn" data-filter="low">低優先度</button>
             </div>
 
             <div class="todo-list" id="todoList">
