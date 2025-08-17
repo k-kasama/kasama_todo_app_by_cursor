@@ -10,10 +10,13 @@ body {
     min-height: 100vh;
     color: #333;
     line-height: 1.6;
+    overflow-x: hidden;
+    width: 100%;
 }
 
 .container {
-    max-width: 800px;
+    max-width: 1200px;
+    width: 100%;
     margin: 0 auto;
     padding: 2rem;
     min-height: 100vh;
@@ -52,6 +55,8 @@ body {
     box-shadow: 0 20px 40px rgba(0,0,0,0.1);
     backdrop-filter: blur(10px);
     flex: 1;
+    width: 100%;
+    overflow-x: hidden;
 }
 
 .input-section {
@@ -66,6 +71,8 @@ body {
     padding: 0.5rem;
     border: 2px solid transparent;
     transition: all 0.3s ease;
+    flex-wrap: wrap;
+    align-items: center;
 }
 
 .input-group:focus-within {
@@ -200,6 +207,8 @@ body {
     margin-bottom: 2rem;
     max-height: 400px;
     overflow-y: auto;
+    overflow-x: hidden;
+    width: 100%;
 }
 
 .todo-item {
@@ -212,6 +221,8 @@ body {
     transition: all 0.3s ease;
     border: 2px solid transparent;
     position: relative;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }
 
 .todo-item.major {
@@ -284,11 +295,14 @@ body {
     font-size: 1rem;
     color: #333;
     word-break: break-word;
+    min-width: 200px;
+    max-width: 100%;
 }
 
 .todo-actions {
     display: flex;
     gap: 0.5rem;
+    flex-shrink: 0;
 }
 
 .todo-btn {
@@ -386,21 +400,47 @@ body {
 }
 
 /* レスポンシブデザイン */
+@media (max-width: 1200px) {
+    .container {
+        max-width: 95%;
+        padding: 1.5rem;
+    }
+}
+
 @media (max-width: 768px) {
     .container {
         padding: 1rem;
     }
     
     .todo-container {
-        padding: 1.5rem;
+        padding: 1rem;
     }
     
     .header h1 {
-        font-size: 2rem;
+        font-size: 1.8rem;
+    }
+    
+    .subtitle {
+        font-size: 1rem;
+    }
+    
+    .input-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    #todoInput {
+        width: 100%;
     }
     
     .filters {
         flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+    
+    .filter-btn {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
     }
     
     .todo-stats {
@@ -411,6 +451,94 @@ body {
     
     .actions {
         flex-direction: column;
+    }
+    
+    .todo-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    
+    .todo-text {
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .todo-actions {
+        align-self: flex-end;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 0.5rem;
+    }
+    
+    .todo-container {
+        padding: 0.75rem;
+        border-radius: 15px;
+    }
+    
+    .header h1 {
+        font-size: 1.5rem;
+    }
+    
+    .subtitle {
+        font-size: 0.9rem;
+    }
+    
+    .input-group {
+        gap: 0.25rem;
+    }
+    
+    .priority-input,
+    .time-input,
+    .deadline-input,
+    .category-input,
+    .parent-input {
+        min-width: 60px;
+        font-size: 0.75rem;
+        padding: 0.5rem 0.25rem;
+    }
+    
+    .filter-btn {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    
+    .todo-item {
+        padding: 0.75rem;
+    }
+    
+    .todo-text {
+        font-size: 0.9rem;
+    }
+    
+    .todo-priority,
+    .todo-category,
+    .todo-time,
+    .todo-deadline {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    .email-btn,
+    .schedule-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+    }
+    
+    .modal-content {
+        width: 98%;
+        margin: 5% auto;
+    }
+    
+    .modal-header {
+        padding: 0.75rem 1rem;
+    }
+    
+    .modal-body {
+        padding: 1rem;
     }
 }
 
@@ -862,7 +990,7 @@ body {
     box-shadow: 0 8px 20px rgba(107, 114, 128, 0.3);
 }
 
-/* レスポンシブ対応 */
+/* モーダル用レスポンシブ対応 */
 @media (max-width: 768px) {
     .modal-content {
         width: 95%;
@@ -887,27 +1015,25 @@ body {
         align-items: flex-start;
     }
     
-    .filters {
-        gap: 0.25rem;
+    .edit-input-section {
+        gap: 0.75rem;
     }
     
-    .filter-btn {
-        padding: 0.4rem 0.6rem;
-        font-size: 0.8rem;
+    .edit-input-section input,
+    .edit-input-section select {
+        padding: 0.6rem;
+        font-size: 0.9rem;
     }
     
-    .input-group {
-        flex-wrap: wrap;
-        gap: 0.25rem;
+    .edit-actions {
+        flex-direction: column;
+        gap: 0.5rem;
     }
     
-    .priority-input,
-    .time-input,
-    .deadline-input,
-    .category-input,
-    .parent-input {
-        min-width: 70px;
-        font-size: 0.8rem;
+    .save-btn,
+    .cancel-btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.9rem;
     }
 }
 
