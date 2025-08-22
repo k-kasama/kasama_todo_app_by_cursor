@@ -1602,6 +1602,140 @@ body {
     border-left: 4px solid #667eea;
 }
 
+/* レポート機能のスタイル */
+.report-settings {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.report-settings h3 {
+    margin-bottom: 1rem;
+    color: #374151;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.report-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.export-btn {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.75rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.export-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+}
+
+.report-result {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 1.5rem;
+}
+
+.report-summary {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.report-summary h4 {
+    margin: 0 0 1rem 0;
+    color: #374151;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.report-summary p {
+    margin: 0.5rem 0;
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    font-size: 0.875rem;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.report-table th,
+.report-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.report-table th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+}
+
+.report-table tr:hover {
+    background: #f9fafb;
+}
+
+.report-table .status-completed {
+    color: #10b981;
+    font-weight: 500;
+}
+
+.report-table .status-in-progress {
+    color: #f59e0b;
+    font-weight: 500;
+}
+
+.report-table .status-not-started {
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.report-table .priority-high {
+    color: #ef4444;
+    font-weight: 500;
+}
+
+.report-table .priority-medium {
+    color: #f59e0b;
+    font-weight: 500;
+}
+
+.report-table .priority-low {
+    color: #10b981;
+    font-weight: 500;
+}
+
+.report-table td:nth-child(7) {
+    max-width: 200px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
 .schedule-task:last-child {
     margin-bottom: 0;
 }

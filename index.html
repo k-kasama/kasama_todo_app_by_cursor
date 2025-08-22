@@ -108,6 +108,9 @@
                 <button id="clearAll" class="action-btn danger">
                     <i class="fas fa-trash-alt"></i> すべて削除
                 </button>
+                <button id="generateReport" class="action-btn">
+                    <i class="fas fa-file-alt"></i> レポート生成
+                </button>
             </div>
         </div>
     </div>
@@ -275,6 +278,43 @@
                             <i class="fas fa-times"></i> キャンセル
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- レポートモーダル -->
+    <div id="reportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-file-alt"></i> レポート生成</h2>
+                <button class="close-btn" id="closeReportModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="report-settings">
+                    <h3>レポート設定</h3>
+                    <div class="setting-group">
+                        <label for="reportDate">完了日:</label>
+                        <input type="date" id="reportDate">
+                        <span>（指定しない場合はすべてのタスク）</span>
+                    </div>
+                    <div class="report-actions">
+                        <button id="generateAllReport" class="generate-btn">
+                            <i class="fas fa-list"></i> 全タスクレポート
+                        </button>
+                        <button id="generateCompletedReport" class="generate-btn">
+                            <i class="fas fa-check-circle"></i> 完了タスクレポート
+                        </button>
+                        <button id="exportReport" class="export-btn" style="display: none;">
+                            <i class="fas fa-download"></i> CSV出力
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="report-result" id="reportResult">
+                    <!-- レポート結果がここに表示されます -->
                 </div>
             </div>
         </div>

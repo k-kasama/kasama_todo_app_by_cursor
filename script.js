@@ -150,7 +150,8 @@ class TodoApp {
                         time: todo.time || 0,
                         deadline: todo.deadline || '',
                         priority: todo.priority || 'medium',
-                        comment: todo.comment || ''
+                        comment: todo.comment || '',
+                        completedAt: todo.completedAt || null
                     }));
                     
                     resolve();
@@ -351,6 +352,12 @@ class TodoApp {
         const todo = this.todos.find(t => t.id === id);
         if (todo) {
             todo.completed = !todo.completed;
+            // 完了日時を記録
+            if (todo.completed) {
+                todo.completedAt = new Date().toISOString();
+            } else {
+                todo.completedAt = null;
+            }
             try {
                 this.showLoading();
                 await this.updateTodo(todo);
@@ -1568,6 +1575,18 @@ class TodoApp {
         return `${date.getMonth() + 1}/${date.getDate()}`;
     }
 
+    // 日付をYYYY-MM-DD形式に変換するヘルパー関数
+    formatDateForComparison(dateString) {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+            return '';
+        }
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
     getDayName(day) {
         const days = ['日', '月', '火', '水', '木', '金', '土'];
         return days[day];
@@ -1593,6 +1612,163 @@ class TodoApp {
         const day = String(date.getDate()).padStart(2, '0');
         
         return `${year}-${month}-${day}`;
+    }
+
+    // レポート機能
+    openReportModal() {
+        document.getElementById('reportModal').style.display = 'block';
+        // 今日の日付をデフォルトに設定
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('reportDate').value = today;
+    }
+
+    closeReportModal() {
+        document.getElementById('reportModal').style.display = 'none';
+        document.getElementById('reportResult').innerHTML = '';
+        document.getElementById('exportReport').style.display = 'none';
+    }
+
+    generateAllReport() {
+        const reportData = this.todos.map(todo => ({
+            ...todo,
+            completedDate: todo.completed ? this.formatDate(todo.createdAt) : ''
+        }));
+
+        this.displayReport(reportData, '全タスクレポート');
+    }
+
+    generateCompletedReport() {
+        const reportDate = document.getElementById('reportDate').value;
+        let completedTodos;
+
+        if (reportDate) {
+            // 指定日付の完了タスクを取得
+            completedTodos = this.todos.filter(todo => {
+                if (!todo.completed) return false;
+                // 完了日時がある場合はそれを使用、ない場合は作成日時を使用
+                const completedDate = todo.completedAt ? 
+                    this.formatDateForComparison(todo.completedAt) : 
+                    this.formatDateForComparison(todo.createdAt);
+                return completedDate === reportDate;
+            });
+        } else {
+            // すべての完了タスクを取得
+            completedTodos = this.todos.filter(todo => todo.completed);
+        }
+
+        const reportData = completedTodos.map(todo => ({
+            ...todo,
+            completedDate: todo.completedAt ? 
+                this.formatDateForComparison(todo.completedAt) : 
+                this.formatDateForComparison(todo.createdAt)
+        }));
+
+        const title = reportDate ? `${reportDate}の完了タスクレポート` : '完了タスクレポート';
+        this.displayReport(reportData, title);
+    }
+
+    displayReport(reportData, title) {
+        const container = document.getElementById('reportResult');
+        
+        if (reportData.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #6b7280; font-style: italic;">レポートデータがありません</p>';
+            document.getElementById('exportReport').style.display = 'none';
+            return;
+        }
+
+        // 統計情報を計算
+        const totalTasks = reportData.length;
+        const completedTasks = reportData.filter(t => t.completed).length;
+        const totalTime = reportData.reduce((sum, t) => sum + (t.time || 0), 0);
+        const avgTime = totalTasks > 0 ? (totalTime / totalTasks).toFixed(1) : 0;
+
+        const summary = `
+            <div class="report-summary">
+                <h4>${title}</h4>
+                <p>総タスク数: ${totalTasks}</p>
+                <p>完了タスク数: ${completedTasks}</p>
+                <p>総予測時間: ${totalTime}時間</p>
+                <p>平均予測時間: ${avgTime}時間</p>
+            </div>
+        `;
+
+        const tableHTML = `
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th>タスク名</th>
+                        <th>ステータス</th>
+                        <th>優先度</th>
+                        <th>予測時間</th>
+                        <th>期限</th>
+                        <th>完了日</th>
+                        <th>コメント</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${reportData.map(todo => `
+                        <tr>
+                            <td>${this.escapeHtml(todo.text)}</td>
+                            <td class="status-${todo.status || 'not-started'}">${this.getStatusLabel(todo.status)}</td>
+                            <td class="priority-${todo.priority || 'medium'}">${this.getPriorityLabel(todo.priority)}</td>
+                            <td>${todo.time || 0}時間</td>
+                            <td>${todo.deadline ? this.formatDate(todo.deadline) : '-'}</td>
+                            <td>${todo.completedDate || '-'}</td>
+                            <td>${todo.comment ? this.escapeHtml(todo.comment) : '-'}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+
+        container.innerHTML = summary + tableHTML;
+        document.getElementById('exportReport').style.display = 'inline-flex';
+        
+        // エクスポート用データを保存
+        this.currentReportData = reportData;
+        this.currentReportTitle = title;
+    }
+
+    exportReport() {
+        if (!this.currentReportData || this.currentReportData.length === 0) {
+            this.showNotification('エクスポートするデータがありません', 'error');
+            return;
+        }
+
+        const headers = ['タスク名', 'ステータス', '優先度', '予測時間', '期限', '完了日', 'コメント'];
+        const csvData = [
+            headers.join(','),
+            ...this.currentReportData.map(todo => [
+                `"${todo.text.replace(/"/g, '""')}"`,
+                this.getStatusLabel(todo.status),
+                this.getPriorityLabel(todo.priority),
+                `${todo.time || 0}時間`,
+                todo.deadline ? this.formatDate(todo.deadline) : '',
+                todo.completedDate || '',
+                `"${(todo.comment || '').replace(/"/g, '""')}"`
+            ].join(','))
+        ].join('\n');
+
+        const blob = new Blob(['\uFEFF' + csvData], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${this.currentReportTitle}_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        this.showNotification('CSVファイルをダウンロードしました', 'success');
+    }
+
+    getPriorityLabel(priority) {
+        const labels = {
+            'high': '高',
+            'medium': '中',
+            'low': '低'
+        };
+        return labels[priority] || '中';
     }
 
     parseDateFromDisplay(displayDate) {
@@ -1637,6 +1813,7 @@ class TodoApp {
         // 一括操作
         document.getElementById('clearCompleted').addEventListener('click', () => this.clearCompleted());
         document.getElementById('clearAll').addEventListener('click', () => this.clearAll());
+        document.getElementById('generateReport').addEventListener('click', () => this.openReportModal());
 
         // メール機能
         document.getElementById('emailImportBtn').addEventListener('click', () => this.openEmailModal());
@@ -1665,6 +1842,12 @@ class TodoApp {
         document.getElementById('scheduleBtn').addEventListener('click', () => this.openScheduleModal());
         document.getElementById('closeScheduleModal').addEventListener('click', () => this.closeScheduleModal());
         document.getElementById('generateSchedule').addEventListener('click', () => this.generateSchedule());
+
+        // レポート機能
+        document.getElementById('closeReportModal').addEventListener('click', () => this.closeReportModal());
+        document.getElementById('generateAllReport').addEventListener('click', () => this.generateAllReport());
+        document.getElementById('generateCompletedReport').addEventListener('click', () => this.generateCompletedReport());
+        document.getElementById('exportReport').addEventListener('click', () => this.exportReport());
         
         // モーダル外クリックで閉じる
         document.getElementById('emailModal').addEventListener('click', (e) => {
@@ -1676,6 +1859,12 @@ class TodoApp {
         document.getElementById('scheduleModal').addEventListener('click', (e) => {
             if (e.target.id === 'scheduleModal') {
                 this.closeScheduleModal();
+            }
+        });
+
+        document.getElementById('reportModal').addEventListener('click', (e) => {
+            if (e.target.id === 'reportModal') {
+                this.closeReportModal();
             }
         });
         
