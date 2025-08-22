@@ -3,7 +3,7 @@ class TodoApp {
         this.todos = [];
         this.filter = 'all';
         this.dbName = 'TodoAppDB';
-        this.dbVersion = 2; // バージョンを上げてスキーマを更新
+        this.dbVersion = 3; // バージョンを上げてスキーマを更新（ステータスフィールド追加）
         this.storeName = 'todos';
         this.db = null;
         this.extractedTodos = []; // 抽出されたTODOアイテムを保存
@@ -37,6 +37,7 @@ class TodoApp {
                     store.createIndex('deadline', 'deadline', { unique: false });
                     store.createIndex('category', 'category', { unique: false });
                     store.createIndex('parentId', 'parentId', { unique: false });
+                    store.createIndex('status', 'status', { unique: false });
                 } else {
                     // 既存のストアに新しいインデックスを追加
                     const store = event.currentTarget.transaction.objectStore(this.storeName);
@@ -45,6 +46,9 @@ class TodoApp {
                     }
                     if (!store.indexNames.contains('parentId')) {
                         store.createIndex('parentId', 'parentId', { unique: false });
+                    }
+                    if (!store.indexNames.contains('status')) {
+                        store.createIndex('status', 'status', { unique: false });
                     }
                 }
             };
@@ -150,7 +154,7 @@ class TodoApp {
         });
     }
 
-    async addTodo(text, category = 'major', parentId = null, priority = 'medium', time = 0, deadline = '') {
+    async addTodo(text, category = 'major', parentId = null, priority = 'medium', status = 'not-started', time = 0, deadline = '') {
         if (text.trim() === '') return;
 
         const todo = {
@@ -159,6 +163,7 @@ class TodoApp {
             category: category,
             parentId: parentId,
             priority: priority,
+            status: status,
             time: parseInt(time) || 0,
             deadline: deadline,
             createdAt: new Date().toISOString()
@@ -199,6 +204,54 @@ class TodoApp {
         }
     }
 
+    async startTodo(id) {
+        const todo = this.todos.find(t => t.id === id);
+        if (todo && todo.status === 'not-started') {
+            todo.status = 'in-progress';
+            try {
+                await this.updateTodo(todo);
+                this.render();
+                this.showNotification('取り組みを開始しました！', 'success');
+            } catch (error) {
+                console.error('Error starting todo:', error);
+                this.showNotification('ステータスの更新に失敗しました', 'error');
+            }
+        }
+    }
+
+    async pauseTodo(id) {
+        const todo = this.todos.find(t => t.id === id);
+        if (todo && todo.status === 'in-progress') {
+            todo.status = 'not-started';
+            try {
+                await this.updateTodo(todo);
+                this.render();
+                this.showNotification('取り組みを一時停止しました', 'info');
+            } catch (error) {
+                console.error('Error pausing todo:', error);
+                this.showNotification('ステータスの更新に失敗しました', 'error');
+            }
+        }
+    }
+
+    async toggleStatus(id) {
+        const todo = this.todos.find(t => t.id === id);
+        if (todo) {
+            const newStatus = todo.status === 'not-started' ? 'in-progress' : 'not-started';
+            todo.status = newStatus;
+            try {
+                await this.updateTodo(todo);
+                this.render();
+                const message = newStatus === 'in-progress' ? '取り組みを開始しました！' : '取り組みを一時停止しました';
+                const type = newStatus === 'in-progress' ? 'success' : 'info';
+                this.showNotification(message, type);
+            } catch (error) {
+                console.error('Error toggling status:', error);
+                this.showNotification('ステータスの更新に失敗しました', 'error');
+            }
+        }
+    }
+
     async deleteTodoById(id) {
         const todo = this.todos.find(t => t.id === id);
         if (!todo) return;
@@ -225,6 +278,7 @@ class TodoApp {
         document.getElementById('editText').value = todo.text;
         document.getElementById('editCategory').value = todo.category || 'major';
         document.getElementById('editPriority').value = todo.priority || 'medium';
+        document.getElementById('editStatus').value = todo.status || 'not-started';
         document.getElementById('editTime').value = todo.time || '';
         document.getElementById('editDeadline').value = todo.deadline || '';
         
@@ -283,6 +337,7 @@ class TodoApp {
         const newCategory = document.getElementById('editCategory').value;
         const newParentId = document.getElementById('editParent').value ? parseInt(document.getElementById('editParent').value) : null;
         const newPriority = document.getElementById('editPriority').value;
+        const newStatus = document.getElementById('editStatus').value;
         const newTime = parseFloat(document.getElementById('editTime').value) || 0;
         const newDeadline = document.getElementById('editDeadline').value || '';
 
@@ -296,6 +351,7 @@ class TodoApp {
         todo.category = newCategory;
         todo.parentId = newParentId;
         todo.priority = newPriority;
+        todo.status = newStatus;
         todo.time = newTime;
         todo.deadline = newDeadline;
 
@@ -345,6 +401,9 @@ class TodoApp {
         }
 
         todoList.innerHTML = filteredTodos.map(todo => this.getTodoHTML(todo)).join('');
+        
+        // 統計情報を更新
+        this.updateStats();
         
         // イベントリスナーを再設定
         this.bindTodoEvents();
@@ -400,6 +459,10 @@ class TodoApp {
                 return this.todos.filter(t => !t.completed);
             case 'completed':
                 return this.todos.filter(t => t.completed);
+            case 'not-started':
+                return this.todos.filter(t => t.status === 'not-started');
+            case 'in-progress':
+                return this.todos.filter(t => t.status === 'in-progress');
             case 'high':
                 return this.todos.filter(t => t.priority === 'high');
             case 'medium':
@@ -416,6 +479,7 @@ class TodoApp {
         const checkedClass = todo.completed ? 'checked' : '';
         const categoryClass = todo.category || 'major';
         const priorityBadge = todo.priority ? `<span class="todo-priority ${todo.priority}">${this.getPriorityLabel(todo.priority)}</span>` : '';
+        const statusBadge = todo.status ? `<span class="todo-status ${todo.status} ${!todo.completed ? 'clickable' : ''}" ${!todo.completed ? `onclick="todoApp.toggleStatus(${todo.id})" title="クリックしてステータスを変更"` : ''}>${this.getStatusLabel(todo.status)}</span>` : '';
         const timeBadge = todo.time ? `<span class="todo-time">${todo.time}時間</span>` : '';
         const deadlineBadge = todo.deadline ? `<span class="todo-deadline">${this.formatDate(todo.deadline)}</span>` : '';
         const categoryBadge = `<span class="todo-category ${categoryClass}">${this.getCategoryLabel(todo.category)}</span>`;
@@ -426,9 +490,19 @@ class TodoApp {
                 <div class="todo-text">${this.escapeHtml(todo.text)}</div>
                 ${categoryBadge}
                 ${priorityBadge}
+                ${statusBadge}
                 ${timeBadge}
                 ${deadlineBadge}
                 <div class="todo-actions">
+                    ${!todo.completed ? (
+                        todo.status === 'not-started' ? 
+                            `<button class="todo-btn start" onclick="todoApp.startTodo(${todo.id})" title="取り組み開始">
+                                <i class="fas fa-play"></i>
+                            </button>` : 
+                            `<button class="todo-btn pause" onclick="todoApp.pauseTodo(${todo.id})" title="取り組み一時停止">
+                                <i class="fas fa-pause"></i>
+                            </button>`
+                    ) : ''}
                     <button class="todo-btn edit" onclick="todoApp.openEditModal(${todo.id})" title="編集">
                         <i class="fas fa-edit"></i>
                     </button>
@@ -471,6 +545,16 @@ class TodoApp {
                 icon: 'fas fa-arrow-down',
                 title: '低優先度のタスクがありません',
                 message: '低優先度のタスクを追加してください'
+            },
+            'not-started': {
+                icon: 'fas fa-clock',
+                title: '取り組み前のタスクがありません',
+                message: '取り組み前のタスクを追加してください'
+            },
+            'in-progress': {
+                icon: 'fas fa-spinner',
+                title: '取り組み中のタスクがありません',
+                message: '取り組み中のタスクを追加してください'
             }
         };
 
@@ -494,11 +578,13 @@ class TodoApp {
         const total = this.todos.length;
         const completed = this.todos.filter(t => t.completed).length;
         const active = total - completed;
+        const inProgress = this.todos.filter(t => t.status === 'in-progress').length;
         const totalTime = this.todos.reduce((sum, todo) => sum + (todo.time || 0), 0);
 
         document.getElementById('totalCount').textContent = total;
         document.getElementById('completedCount').textContent = completed;
         document.getElementById('activeCount').textContent = active;
+        document.getElementById('inProgressCount').textContent = inProgress;
         document.getElementById('totalTime').textContent = totalTime;
     }
 
@@ -605,13 +691,14 @@ class TodoApp {
             const subjectText = subject.trim();
             // 件名が「件名：」で始まっていない場合は、そのままTODOとして扱う
             if (!subjectText.match(/^件名[：:]/)) {
-                todos.push({
-                    text: subjectText,
-                    priority: 'medium',
-                    time: 0,
-                    deadline: globalDeadline,
-                    lineNumber: 0
-                });
+                            todos.push({
+                text: subjectText,
+                priority: 'medium',
+                status: 'not-started',
+                time: 0,
+                deadline: globalDeadline,
+                lineNumber: 0
+            });
             }
         }
         
@@ -672,6 +759,7 @@ class TodoApp {
                         todos.push({
                             text: todoText,
                             priority: priority,
+                            status: 'not-started',
                             time: time,
                             deadline: deadline,
                             lineNumber: index + 1
@@ -692,6 +780,7 @@ class TodoApp {
                     todos.push({
                         text: todoText,
                         priority: priority,
+                        status: 'not-started',
                         time: time,
                         deadline: deadline,
                         lineNumber: index + 1
@@ -710,6 +799,7 @@ class TodoApp {
                     todos.push({
                         text: todoText,
                         priority: priority,
+                        status: 'not-started',
                         time: time,
                         deadline: deadline,
                         lineNumber: index + 1
@@ -840,6 +930,7 @@ class TodoApp {
                 <input type="checkbox" id="todo-${index}" checked>
                 <label for="todo-${index}" class="todo-text">${this.escapeHtml(todo.text)}</label>
                 <span class="todo-priority ${todo.priority}">${this.getPriorityLabel(todo.priority)}</span>
+                <span class="todo-status ${todo.status}">${this.getStatusLabel(todo.status)}</span>
                 ${todo.time ? `<span class="todo-time">${todo.time}時間</span>` : ''}
                 ${todo.deadline ? `<span class="todo-deadline">${this.formatDate(todo.deadline)}</span>` : ''}
             </div>
@@ -873,6 +964,14 @@ class TodoApp {
             minor: '小項目'
         };
         return labels[category] || '大項目';
+    }
+
+    getStatusLabel(status) {
+        const labels = {
+            'not-started': '取り組み前',
+            'in-progress': '取り組み中'
+        };
+        return labels[status] || '取り組み前';
     }
 
     updateParentOptions(category) {
@@ -940,6 +1039,7 @@ class TodoApp {
                 category: 'major', // デフォルトは大項目
                 parentId: null,
                 priority: priority,
+                status: 'not-started',
                 time: time,
                 deadline: deadline,
                 createdAt: new Date().toISOString()
@@ -986,6 +1086,10 @@ class TodoApp {
                     <option value="medium" ${todo.priority === 'medium' ? 'selected' : ''}>中</option>
                     <option value="low" ${todo.priority === 'low' ? 'selected' : ''}>低</option>
                 </select>
+                <select class="edit-todo-status">
+                    <option value="not-started" ${todo.status === 'not-started' ? 'selected' : ''}>取り組み前</option>
+                    <option value="in-progress" ${todo.status === 'in-progress' ? 'selected' : ''}>取り組み中</option>
+                </select>
                 <input type="number" value="${todo.time || ''}" placeholder="時間" min="0.5" max="24" step="0.5" class="edit-todo-time">
                 <input type="date" value="${todo.deadline || ''}" class="edit-todo-deadline">
                 <button class="remove-todo-btn" onclick="todoApp.removeExtractedTodo(${index})" title="削除">
@@ -1006,6 +1110,7 @@ class TodoApp {
         const newTodo = {
             text: '',
             priority: 'medium',
+            status: 'not-started',
             time: 0,
             deadline: '',
             lineNumber: this.extractedTodos.length + 1
@@ -1028,6 +1133,7 @@ class TodoApp {
         todoItems.forEach((item, index) => {
             const text = item.querySelector('.edit-todo-text').value.trim();
             const priority = item.querySelector('.edit-todo-priority').value;
+            const status = item.querySelector('.edit-todo-status').value;
             const time = parseFloat(item.querySelector('.edit-todo-time').value) || 0;
             const deadline = item.querySelector('.edit-todo-deadline').value;
 
@@ -1035,6 +1141,7 @@ class TodoApp {
                 updatedTodos.push({
                     text: text,
                     priority: priority,
+                    status: status,
                     time: time,
                     deadline: deadline,
                     lineNumber: index + 1
@@ -1344,15 +1451,17 @@ class TodoApp {
         const category = categoryInput.value || 'major';
         const parentId = parentInput.value ? parseInt(parentInput.value) : null;
         const priority = priorityInput.value || 'medium';
+        const status = document.getElementById('todoStatus').value || 'not-started';
         const time = parseFloat(timeInput.value) || 0;
         const deadline = deadlineInput.value || '';
         
         if (text) {
-            this.addTodo(text, category, parentId, priority, time, deadline);
+            this.addTodo(text, category, parentId, priority, status, time, deadline);
             input.value = '';
             categoryInput.value = '';
             parentInput.value = '';
             priorityInput.value = '';
+            document.getElementById('todoStatus').value = '';
             timeInput.value = '';
             deadlineInput.value = '';
             input.focus();

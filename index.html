@@ -34,6 +34,11 @@
                         <option value="medium">中</option>
                         <option value="low">低</option>
                     </select>
+                    <select id="todoStatus" class="status-input">
+                        <option value="">ステータス</option>
+                        <option value="not-started">取り組み前</option>
+                        <option value="in-progress">取り組み中</option>
+                    </select>
                     <input type="number" id="todoTime" placeholder="時間" min="0.5" max="24" step="0.5" class="time-input">
                     <input type="date" id="todoDeadline" class="deadline-input">
                     <button id="addTodo" class="add-btn">
@@ -54,6 +59,8 @@
                 <button class="filter-btn active" data-filter="all">すべて</button>
                 <button class="filter-btn" data-filter="active">未完了</button>
                 <button class="filter-btn" data-filter="completed">完了済み</button>
+                <button class="filter-btn" data-filter="not-started">取り組み前</button>
+                <button class="filter-btn" data-filter="in-progress">取り組み中</button>
                 <button class="filter-btn" data-filter="high">高優先度</button>
                 <button class="filter-btn" data-filter="medium">中優先度</button>
                 <button class="filter-btn" data-filter="low">低優先度</button>
@@ -67,6 +74,7 @@
                 <span class="stats-text">タスク: <span id="totalCount">0</span></span>
                 <span class="stats-text">完了: <span id="completedCount">0</span></span>
                 <span class="stats-text">未完了: <span id="activeCount">0</span></span>
+                <span class="stats-text">取り組み中: <span id="inProgressCount">0</span></span>
                 <span class="stats-text">総時間: <span id="totalTime">0</span>時間</span>
             </div>
 
@@ -191,6 +199,12 @@
                         <option value="high">高</option>
                         <option value="medium">中</option>
                         <option value="low">低</option>
+                    </select>
+                    
+                    <label for="editStatus">ステータス:</label>
+                    <select id="editStatus" class="status-input">
+                        <option value="not-started">取り組み前</option>
+                        <option value="in-progress">取り組み中</option>
                     </select>
                     
                     <label for="editTime">予測時間:</label>

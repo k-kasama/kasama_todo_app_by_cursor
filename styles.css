@@ -127,6 +127,16 @@ body {
     color: #333;
 }
 
+.status-input {
+    width: 120px;
+    cursor: pointer;
+}
+
+.status-input option {
+    background: white;
+    color: #333;
+}
+
 .category-input {
     width: 100px;
     cursor: pointer;
@@ -258,6 +268,16 @@ body {
     color: #6b7280;
 }
 
+.todo-item.completed .todo-status {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.todo-item.completed .todo-status:hover {
+    transform: none;
+    box-shadow: none;
+}
+
 .todo-checkbox {
     width: 20px;
     height: 20px;
@@ -318,6 +338,24 @@ body {
 .todo-btn:hover {
     background: #e2e8f0;
     color: #475569;
+}
+
+.todo-btn.start {
+    color: #059669;
+}
+
+.todo-btn.start:hover {
+    color: #047857;
+    background: #d1fae5;
+}
+
+.todo-btn.pause {
+    color: #d97706;
+}
+
+.todo-btn.pause:hover {
+    color: #b45309;
+    background: #fef3c7;
 }
 
 .todo-btn.edit:hover {
@@ -492,6 +530,7 @@ body {
     }
     
     .priority-input,
+    .status-input,
     .time-input,
     .deadline-input,
     .category-input,
@@ -850,6 +889,44 @@ body {
     color: #2563eb;
 }
 
+.todo-status {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+}
+
+.todo-status.not-started {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+.todo-status.in-progress {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.todo-status.clickable {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.todo-status.clickable:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.todo-status.not-started.clickable:hover {
+    background: #e5e7eb;
+    color: #4b5563;
+}
+
+.todo-status.in-progress.clickable:hover {
+    background: #fde68a;
+    color: #b45309;
+}
+
 .todo-category {
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
@@ -1118,6 +1195,14 @@ body {
     outline: none;
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.extracted-edit-todo-item .edit-todo-priority {
+    width: 80px;
+}
+
+.extracted-edit-todo-item .edit-todo-status {
+    width: 100px;
 }
 
 .extracted-edit-todo-item input[type="number"] {
