@@ -171,6 +171,13 @@ body {
     transition: all 0.3s ease;
     font-size: 1rem;
     min-width: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .add-btn:hover {
@@ -179,6 +186,32 @@ body {
 }
 
 .add-btn:active {
+    transform: translateY(0);
+}
+
+.comment-btn {
+    background: #f1f5f9;
+    color: #64748b;
+    border: none;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+    min-width: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.comment-btn:hover {
+    background: #e2e8f0;
+    color: #475569;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.comment-btn:active {
     transform: translateY(0);
 }
 
@@ -567,6 +600,21 @@ body {
         font-size: 0.8rem;
     }
     
+    .comment-section {
+        padding: 0.75rem;
+    }
+    
+    .comment-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .save-comment-btn,
+    .cancel-comment-btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.85rem;
+    }
+    
     .modal-content {
         width: 98%;
         margin: 5% auto;
@@ -597,6 +645,34 @@ body {
     animation: fadeIn 0.3s ease;
 }
 
+/* ローディング状態のスタイル */
+.loading-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #94a3b8;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #e2e8f0;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-state p {
+    font-size: 0.9rem;
+    margin: 0;
+    color: #64748b;
+}
+
 /* 空の状態のスタイル */
 .empty-state {
     text-align: center;
@@ -617,6 +693,135 @@ body {
 
 .empty-state p {
     font-size: 0.9rem;
+}
+
+/* コメント機能のスタイル */
+.comment-section {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.comment-input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.comment-label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+#todoComment,
+#editComment {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-family: 'Inter', sans-serif;
+    resize: vertical;
+    min-height: 120px;
+    transition: all 0.3s ease;
+}
+
+#todoComment:focus,
+#editComment:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.comment-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
+
+.save-comment-btn {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.save-comment-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.cancel-comment-btn {
+    background: #6b7280;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.cancel-comment-btn:hover {
+    background: #4b5563;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
+}
+
+.todo-comment {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+    background: #e0e7ff;
+    color: #3730a3;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.todo-comment:hover {
+    background: #c7d2fe;
+    color: #312e81;
+    transform: scale(1.05);
+}
+
+.todo-comment-content {
+    margin-top: 0.5rem;
+    padding: 1rem;
+    background: #f0f9ff;
+    border: 1px solid #0ea5e9;
+    border-radius: 8px;
+    width: 100%;
+}
+
+.comment-content h4 {
+    color: #0c4a6e;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.comment-content pre {
+    color: #0369a1;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 0;
+    font-family: 'Inter', sans-serif;
 }
 
 /* メール機能のスタイル */

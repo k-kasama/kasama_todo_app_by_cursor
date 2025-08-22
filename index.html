@@ -41,10 +41,28 @@
                     </select>
                     <input type="number" id="todoTime" placeholder="時間" min="0.5" max="24" step="0.5" class="time-input">
                     <input type="date" id="todoDeadline" class="deadline-input">
+                    <button id="addCommentBtn" class="comment-btn" title="コメントを追加">
+                        <i class="fas fa-comment"></i>
+                    </button>
                     <button id="addTodo" class="add-btn">
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
+                <div class="comment-section" id="commentSection" style="display: none;">
+                    <div class="comment-input-container">
+                        <label for="todoComment" class="comment-label">5W1Hコメント:</label>
+                        <textarea id="todoComment" placeholder="When（いつ）: 期限や実施予定日&#10;Where（どこで）: 実施場所&#10;Who（誰が）: 担当者や関係者&#10;What（何を）: 具体的な作業内容&#10;Why（なぜ）: 目的や理由&#10;How（どのように）: 実施方法や手順" rows="6"></textarea>
+                        <div class="comment-actions">
+                            <button id="saveComment" class="save-comment-btn">
+                                <i class="fas fa-save"></i> コメント保存
+                            </button>
+                            <button id="cancelComment" class="cancel-comment-btn">
+                                <i class="fas fa-times"></i> キャンセル
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="email-section">
                     <button id="emailImportBtn" class="email-btn">
                         <i class="fas fa-envelope"></i> メールからTODOを作成
@@ -67,6 +85,11 @@
             </div>
 
             <div class="todo-list" id="todoList">
+                <!-- ローディング表示 -->
+                <div id="loadingState" class="loading-state">
+                    <div class="loading-spinner"></div>
+                    <p>データを読み込み中...</p>
+                </div>
                 <!-- TODOアイテムがここに動的に追加されます -->
             </div>
 
@@ -212,6 +235,9 @@
                     
                     <label for="editDeadline">期限:</label>
                     <input type="date" id="editDeadline" class="deadline-input">
+                    
+                    <label for="editComment">5W1Hコメント:</label>
+                    <textarea id="editComment" placeholder="When（いつ）: 期限や実施予定日&#10;Where（どこで）: 実施場所&#10;Who（誰が）: 担当者や関係者&#10;What（何を）: 具体的な作業内容&#10;Why（なぜ）: 目的や理由&#10;How（どのように）: 実施方法や手順" rows="6"></textarea>
                     
                     <div class="edit-actions">
                         <button id="saveEdit" class="save-btn">

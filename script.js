@@ -3,159 +3,324 @@ class TodoApp {
         this.todos = [];
         this.filter = 'all';
         this.dbName = 'TodoAppDB';
-        this.dbVersion = 3; // バージョンを上げてスキーマを更新（ステータスフィールド追加）
+        this.dbVersion = 4; // バージョンを上げてスキーマを更新（コメントフィールド追加）
         this.storeName = 'todos';
         this.db = null;
         this.extractedTodos = []; // 抽出されたTODOアイテムを保存
+        this.useLocalStorage = false; // ローカルストレージフォールバックフラグ
+        this.isLoading = true; // ローディング状態フラグ
         
         this.init();
     }
 
     async init() {
-        await this.initDB();
-        await this.loadTodos();
+        // 初期ローディング表示
+        this.showLoading();
+        
+        try {
+            await this.initDB();
+        } catch (error) {
+            // IndexedDBが失敗した場合、ローカルストレージを使用
+            try {
+                this.useLocalStorage = true;
+            } catch (fallbackError) {
+                console.error('ローカルストレージフォールバックエラー:', fallbackError);
+                return;
+            }
+        }
+        
+        try {
+            await this.loadTodos();
+        } catch (error) {
+            console.error('TODO読み込みエラー:', error);
+            return;
+        }
+        
+        try {
+            this.setupEventListeners();
+        } catch (error) {
+            console.error('イベントリスナー設定エラー:', error);
+            return;
+        }
+        
+        // ローディング完了
+        this.hideLoading();
+    }
+
+    showLoading() {
+        this.isLoading = true;
+        const todoList = document.getElementById('todoList');
+        const loadingState = document.getElementById('loadingState');
+        
+        if (todoList && loadingState) {
+            // ローディング表示を設定
+            todoList.innerHTML = '';
+            todoList.appendChild(loadingState);
+            loadingState.style.display = 'block';
+        }
+    }
+
+    hideLoading() {
+        this.isLoading = false;
+        const loadingState = document.getElementById('loadingState');
+        if (loadingState) {
+            loadingState.style.display = 'none';
+        }
+        // ローディング完了後に再レンダリング
         this.render();
-        this.setupEventListeners();
     }
 
     async initDB() {
+        // IndexedDBのサポート確認
+        if (!window.indexedDB) {
+            throw new Error('IndexedDBがサポートされていません');
+        }
+        
+        // ローカルストレージのサポート確認
+        if (!window.localStorage) {
+            throw new Error('localStorageがサポートされていません');
+        }
+        
         return new Promise((resolve, reject) => {
+            // タイムアウトを設定
+            const timeout = setTimeout(() => {
+                reject(new Error('IndexedDB接続がタイムアウトしました'));
+            }, 10000); // 10秒でタイムアウト
+            
             const request = indexedDB.open(this.dbName, this.dbVersion);
             
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => {
+            request.onerror = (event) => {
+                clearTimeout(timeout);
+                reject(request.error);
+            };
+            
+            request.onsuccess = (event) => {
+                clearTimeout(timeout);
                 this.db = request.result;
                 resolve();
             };
             
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
-                if (!db.objectStoreNames.contains(this.storeName)) {
-                    const store = db.createObjectStore(this.storeName, { keyPath: 'id', autoIncrement: true });
-                    store.createIndex('completed', 'completed', { unique: false });
-                    store.createIndex('priority', 'priority', { unique: false });
-                    store.createIndex('deadline', 'deadline', { unique: false });
-                    store.createIndex('category', 'category', { unique: false });
-                    store.createIndex('parentId', 'parentId', { unique: false });
-                    store.createIndex('status', 'status', { unique: false });
-                } else {
-                    // 既存のストアに新しいインデックスを追加
-                    const store = event.currentTarget.transaction.objectStore(this.storeName);
-                    if (!store.indexNames.contains('category')) {
+                
+                try {
+                    if (!db.objectStoreNames.contains(this.storeName)) {
+                        const store = db.createObjectStore(this.storeName, { keyPath: 'id', autoIncrement: true });
+                        store.createIndex('completed', 'completed', { unique: false });
+                        store.createIndex('priority', 'priority', { unique: false });
+                        store.createIndex('deadline', 'deadline', { unique: false });
                         store.createIndex('category', 'category', { unique: false });
-                    }
-                    if (!store.indexNames.contains('parentId')) {
                         store.createIndex('parentId', 'parentId', { unique: false });
-                    }
-                    if (!store.indexNames.contains('status')) {
                         store.createIndex('status', 'status', { unique: false });
+                    } else {
+                        const store = event.currentTarget.transaction.objectStore(this.storeName);
+                        if (!store.indexNames.contains('category')) {
+                            store.createIndex('category', 'category', { unique: false });
+                        }
+                        if (!store.indexNames.contains('parentId')) {
+                            store.createIndex('parentId', 'parentId', { unique: false });
+                        }
+                        if (!store.indexNames.contains('status')) {
+                            store.createIndex('status', 'status', { unique: false });
+                        }
                     }
+                } catch (error) {
+                    reject(error);
                 }
+            };
+            
+            request.onblocked = (event) => {
+                console.warn('IndexedDB blocked:', event);
             };
         });
     }
 
     async loadTodos() {
         return new Promise((resolve, reject) => {
-            if (!this.db) {
-                reject(new Error('Database not initialized'));
-                return;
+            if (this.useLocalStorage) {
+                // ローカルストレージから読み込み
+                try {
+                    const storedTodos = localStorage.getItem('todoApp_todos');
+                    this.todos = storedTodos ? JSON.parse(storedTodos) : [];
+                    
+                    // 古いデータ形式を新しい形式に変換
+                    this.todos = this.todos.map(todo => ({
+                        ...todo,
+                        status: todo.status || 'not-started',
+                        time: todo.time || 0,
+                        deadline: todo.deadline || '',
+                        priority: todo.priority || 'medium',
+                        comment: todo.comment || ''
+                    }));
+                    
+                    resolve();
+                } catch (error) {
+                    console.error('ローカルストレージ読み込みエラー:', error);
+                    this.todos = [];
+                    resolve();
+                }
+            } else {
+                // IndexedDBから読み込み
+                if (!this.db) {
+                    reject(new Error('Database not initialized'));
+                    return;
+                }
+
+                const transaction = this.db.transaction([this.storeName], 'readonly');
+                const store = transaction.objectStore(this.storeName);
+                const request = store.getAll();
+
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    this.todos = request.result || [];
+                    resolve();
+                };
             }
-
-            const transaction = this.db.transaction([this.storeName], 'readonly');
-            const store = transaction.objectStore(this.storeName);
-            const request = store.getAll();
-
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => {
-                this.todos = request.result || [];
-                resolve();
-            };
         });
     }
 
     async saveTodo(todo) {
         return new Promise((resolve, reject) => {
-            if (!this.db) {
-                reject(new Error('Database not initialized'));
-                return;
+            if (this.useLocalStorage) {
+                // ローカルストレージに保存
+                try {
+                    todo.id = Date.now() + Math.random(); // ユニークIDを生成
+                    this.todos.push(todo);
+                    localStorage.setItem('todoApp_todos', JSON.stringify(this.todos));
+                    resolve();
+                } catch (error) {
+                    console.error('ローカルストレージ保存エラー:', error);
+                    reject(error);
+                }
+            } else {
+                // IndexedDBに保存
+                if (!this.db) {
+                    reject(new Error('Database not initialized'));
+                    return;
+                }
+
+                const transaction = this.db.transaction([this.storeName], 'readwrite');
+                const store = transaction.objectStore(this.storeName);
+                const request = store.add(todo);
+
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    todo.id = request.result;
+                    this.todos.push(todo);
+                    resolve();
+                };
             }
-
-            const transaction = this.db.transaction([this.storeName], 'readwrite');
-            const store = transaction.objectStore(this.storeName);
-            const request = store.add(todo);
-
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => {
-                todo.id = request.result;
-                this.todos.push(todo);
-                resolve();
-            };
         });
     }
 
     async updateTodo(todo) {
         return new Promise((resolve, reject) => {
-            if (!this.db) {
-                reject(new Error('Database not initialized'));
-                return;
-            }
-
-            const transaction = this.db.transaction([this.storeName], 'readwrite');
-            const store = transaction.objectStore(this.storeName);
-            const request = store.put(todo);
-
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => {
-                const index = this.todos.findIndex(t => t.id === todo.id);
-                if (index !== -1) {
-                    this.todos[index] = todo;
+            if (this.useLocalStorage) {
+                // ローカルストレージに更新
+                try {
+                    const index = this.todos.findIndex(t => t.id === todo.id);
+                    if (index !== -1) {
+                        this.todos[index] = todo;
+                        localStorage.setItem('todoApp_todos', JSON.stringify(this.todos));
+                        resolve();
+                    } else {
+                        reject(new Error('Todo not found'));
+                    }
+                } catch (error) {
+                    console.error('ローカルストレージ更新エラー:', error);
+                    reject(error);
                 }
-                resolve();
-            };
+            } else {
+                // IndexedDBに更新
+                if (!this.db) {
+                    reject(new Error('Database not initialized'));
+                    return;
+                }
+
+                const transaction = this.db.transaction([this.storeName], 'readwrite');
+                const store = transaction.objectStore(this.storeName);
+                const request = store.put(todo);
+
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    const index = this.todos.findIndex(t => t.id === todo.id);
+                    if (index !== -1) {
+                        this.todos[index] = todo;
+                    }
+                    resolve();
+                };
+            }
         });
     }
 
     async deleteTodo(id) {
         return new Promise((resolve, reject) => {
-            if (!this.db) {
-                reject(new Error('Database not initialized'));
-                return;
+            if (this.useLocalStorage) {
+                // ローカルストレージから削除
+                try {
+                    this.todos = this.todos.filter(todo => todo.id !== id);
+                    localStorage.setItem('todoApp_todos', JSON.stringify(this.todos));
+                    resolve();
+                } catch (error) {
+                    console.error('ローカルストレージ削除エラー:', error);
+                    reject(error);
+                }
+            } else {
+                // IndexedDBから削除
+                if (!this.db) {
+                    reject(new Error('Database not initialized'));
+                    return;
+                }
+
+                const transaction = this.db.transaction([this.storeName], 'readwrite');
+                const store = transaction.objectStore(this.storeName);
+                const request = store.delete(id);
+
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    this.todos = this.todos.filter(todo => todo.id !== id);
+                    resolve();
+                };
             }
-
-            const transaction = this.db.transaction([this.storeName], 'readwrite');
-            const store = transaction.objectStore(this.storeName);
-            const request = store.delete(id);
-
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => {
-                this.todos = this.todos.filter(todo => todo.id !== id);
-                resolve();
-            };
         });
     }
 
     async clearAllTodos() {
         return new Promise((resolve, reject) => {
-            if (!this.db) {
-                reject(new Error('Database not initialized'));
-                return;
+            if (this.useLocalStorage) {
+                // ローカルストレージをクリア
+                try {
+                    this.todos = [];
+                    localStorage.removeItem('todoApp_todos');
+                    resolve();
+                } catch (error) {
+                    console.error('ローカルストレージクリアエラー:', error);
+                    reject(error);
+                }
+            } else {
+                // IndexedDBをクリア
+                if (!this.db) {
+                    reject(new Error('Database not initialized'));
+                    return;
+                }
+
+                const transaction = this.db.transaction([this.storeName], 'readwrite');
+                const store = transaction.objectStore(this.storeName);
+                const request = store.clear();
+
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    this.todos = [];
+                    resolve();
+                };
             }
-
-            const transaction = this.db.transaction([this.storeName], 'readwrite');
-            const store = transaction.objectStore(this.storeName);
-            const request = store.clear();
-
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => {
-                this.todos = [];
-                resolve();
-            };
         });
     }
 
-    async addTodo(text, category = 'major', parentId = null, priority = 'medium', status = 'not-started', time = 0, deadline = '') {
-        if (text.trim() === '') return;
+    async addTodo(text, category = 'major', parentId = null, priority = 'medium', status = 'not-started', time = 0, deadline = '', comment = '') {
+        if (text.trim() === '') {
+            return;
+        }
 
         const todo = {
             text: text.trim(),
@@ -166,14 +331,17 @@ class TodoApp {
             status: status,
             time: parseInt(time) || 0,
             deadline: deadline,
+            comment: comment,
             createdAt: new Date().toISOString()
         };
 
         try {
+            this.showLoading();
             await this.saveTodo(todo);
-            this.render();
+            this.hideLoading();
             this.showNotification('TODOが追加されました！');
         } catch (error) {
+            this.hideLoading();
             console.error('Error adding todo:', error);
             this.showNotification('TODOの追加に失敗しました', 'error');
         }
@@ -184,6 +352,7 @@ class TodoApp {
         if (todo) {
             todo.completed = !todo.completed;
             try {
+                this.showLoading();
                 await this.updateTodo(todo);
                 
                 // 下位項目が完了した場合、上位項目も自動で完了する
@@ -196,8 +365,9 @@ class TodoApp {
                     await this.completeChildTodos(todo.id);
                 }
                 
-                this.render();
+                this.hideLoading();
             } catch (error) {
+                this.hideLoading();
                 console.error('Error updating todo:', error);
                 this.showNotification('TODOの更新に失敗しました', 'error');
             }
@@ -209,10 +379,12 @@ class TodoApp {
         if (todo && todo.status === 'not-started') {
             todo.status = 'in-progress';
             try {
+                this.showLoading();
                 await this.updateTodo(todo);
-                this.render();
+                this.hideLoading();
                 this.showNotification('取り組みを開始しました！', 'success');
             } catch (error) {
+                this.hideLoading();
                 console.error('Error starting todo:', error);
                 this.showNotification('ステータスの更新に失敗しました', 'error');
             }
@@ -224,10 +396,12 @@ class TodoApp {
         if (todo && todo.status === 'in-progress') {
             todo.status = 'not-started';
             try {
+                this.showLoading();
                 await this.updateTodo(todo);
-                this.render();
+                this.hideLoading();
                 this.showNotification('取り組みを一時停止しました', 'info');
             } catch (error) {
+                this.hideLoading();
                 console.error('Error pausing todo:', error);
                 this.showNotification('ステータスの更新に失敗しました', 'error');
             }
@@ -240,15 +414,25 @@ class TodoApp {
             const newStatus = todo.status === 'not-started' ? 'in-progress' : 'not-started';
             todo.status = newStatus;
             try {
+                this.showLoading();
                 await this.updateTodo(todo);
-                this.render();
+                this.hideLoading();
                 const message = newStatus === 'in-progress' ? '取り組みを開始しました！' : '取り組みを一時停止しました';
                 const type = newStatus === 'in-progress' ? 'success' : 'info';
                 this.showNotification(message, type);
             } catch (error) {
+                this.hideLoading();
                 console.error('Error toggling status:', error);
                 this.showNotification('ステータスの更新に失敗しました', 'error');
             }
+        }
+    }
+
+    toggleCommentView(id) {
+        const commentElement = document.getElementById(`comment-${id}`);
+        if (commentElement) {
+            const isVisible = commentElement.style.display !== 'none';
+            commentElement.style.display = isVisible ? 'none' : 'block';
         }
     }
 
@@ -261,35 +445,51 @@ class TodoApp {
         if (!confirmed) return;
 
         try {
+            this.showLoading();
             await this.deleteTodo(id);
-            this.render();
+            this.hideLoading();
             this.showNotification('TODOが削除されました！');
         } catch (error) {
+            this.hideLoading();
             console.error('Error deleting todo:', error);
             this.showNotification('TODOの削除に失敗しました', 'error');
         }
     }
 
     openEditModal(id) {
-        const todo = this.todos.find(t => t.id === id);
+        const todo = this.todos.find(t => t.id == id);
+        
         if (!todo) return;
 
         // モーダルに現在の値を設定
-        document.getElementById('editText').value = todo.text;
-        document.getElementById('editCategory').value = todo.category || 'major';
-        document.getElementById('editPriority').value = todo.priority || 'medium';
-        document.getElementById('editStatus').value = todo.status || 'not-started';
-        document.getElementById('editTime').value = todo.time || '';
-        document.getElementById('editDeadline').value = todo.deadline || '';
+        const editText = document.getElementById('editText');
+        const editCategory = document.getElementById('editCategory');
+        const editPriority = document.getElementById('editPriority');
+        const editStatus = document.getElementById('editStatus');
+        const editTime = document.getElementById('editTime');
+        const editDeadline = document.getElementById('editDeadline');
+        const editComment = document.getElementById('editComment');
+        
+        if (editText) editText.value = todo.text;
+        if (editCategory) editCategory.value = todo.category || 'major';
+        if (editPriority) editPriority.value = todo.priority || 'medium';
+        if (editStatus) editStatus.value = todo.status || 'not-started';
+        if (editTime) {
+            const timeValue = todo.time ? parseFloat(todo.time) : '';
+            editTime.value = timeValue;
+        }
+        if (editDeadline) editDeadline.value = todo.deadline || '';
+        if (editComment) editComment.value = todo.comment || '';
         
         // 親項目の選択肢を更新
         this.updateEditParentOptions(todo.category, todo.parentId);
         
         // 編集対象のIDを保存
-        document.getElementById('editModal').dataset.editId = id;
+        const editModal = document.getElementById('editModal');
+        editModal.dataset.editId = id;
         
         // モーダルを表示
-        document.getElementById('editModal').style.display = 'block';
+        editModal.style.display = 'block';
     }
 
     closeEditModal() {
@@ -328,18 +528,22 @@ class TodoApp {
 
     async saveEdit() {
         const editId = document.getElementById('editModal').dataset.editId;
+        
         if (!editId) return;
 
-        const todo = this.todos.find(t => t.id === parseInt(editId));
+        const todo = this.todos.find(t => t.id == editId);
+        
         if (!todo) return;
 
+        const editTimeElement = document.getElementById('editTime');
         const newText = document.getElementById('editText').value.trim();
         const newCategory = document.getElementById('editCategory').value;
         const newParentId = document.getElementById('editParent').value ? parseInt(document.getElementById('editParent').value) : null;
         const newPriority = document.getElementById('editPriority').value;
         const newStatus = document.getElementById('editStatus').value;
-        const newTime = parseFloat(document.getElementById('editTime').value) || 0;
+        const newTime = editTimeElement ? parseFloat(editTimeElement.value) || 0 : 0;
         const newDeadline = document.getElementById('editDeadline').value || '';
+        const newComment = document.getElementById('editComment').value || '';
 
         if (newText === '') {
             this.showNotification('タスク名を入力してください', 'error');
@@ -354,6 +558,7 @@ class TodoApp {
         todo.status = newStatus;
         todo.time = newTime;
         todo.deadline = newDeadline;
+        todo.comment = newComment;
 
         try {
             await this.updateTodo(todo);
@@ -393,6 +598,17 @@ class TodoApp {
 
     render() {
         const todoList = document.getElementById('todoList');
+        
+        if (!todoList) {
+            console.error('todoList要素が見つかりません');
+            return;
+        }
+        
+        // ローディング中は何もしない
+        if (this.isLoading) {
+            return;
+        }
+        
         const filteredTodos = this.getFilteredTodos();
 
         if (filteredTodos.length === 0) {
@@ -483,6 +699,7 @@ class TodoApp {
         const timeBadge = todo.time ? `<span class="todo-time">${todo.time}時間</span>` : '';
         const deadlineBadge = todo.deadline ? `<span class="todo-deadline">${this.formatDate(todo.deadline)}</span>` : '';
         const categoryBadge = `<span class="todo-category ${categoryClass}">${this.getCategoryLabel(todo.category)}</span>`;
+        const commentBadge = todo.comment ? `<span class="todo-comment" onclick="todoApp.toggleCommentView(${todo.id})" title="コメントを表示"><i class="fas fa-comment"></i></span>` : '';
         
         return `
             <div class="todo-item ${completedClass} ${categoryClass}" data-id="${todo.id}">
@@ -493,6 +710,13 @@ class TodoApp {
                 ${statusBadge}
                 ${timeBadge}
                 ${deadlineBadge}
+                ${commentBadge}
+                ${todo.comment ? `<div class="todo-comment-content" id="comment-${todo.id}" style="display: none;">
+                    <div class="comment-content">
+                        <h4>5W1Hコメント:</h4>
+                        <pre>${this.escapeHtml(todo.comment)}</pre>
+                    </div>
+                </div>` : ''}
                 <div class="todo-actions">
                     ${!todo.completed ? (
                         todo.status === 'not-started' ? 
@@ -581,11 +805,17 @@ class TodoApp {
         const inProgress = this.todos.filter(t => t.status === 'in-progress').length;
         const totalTime = this.todos.reduce((sum, todo) => sum + (todo.time || 0), 0);
 
-        document.getElementById('totalCount').textContent = total;
-        document.getElementById('completedCount').textContent = completed;
-        document.getElementById('activeCount').textContent = active;
-        document.getElementById('inProgressCount').textContent = inProgress;
-        document.getElementById('totalTime').textContent = totalTime;
+        const totalCountEl = document.getElementById('totalCount');
+        const completedCountEl = document.getElementById('completedCount');
+        const activeCountEl = document.getElementById('activeCount');
+        const inProgressCountEl = document.getElementById('inProgressCount');
+        const totalTimeEl = document.getElementById('totalTime');
+
+        if (totalCountEl) totalCountEl.textContent = total;
+        if (completedCountEl) completedCountEl.textContent = completed;
+        if (activeCountEl) activeCountEl.textContent = active;
+        if (inProgressCountEl) inProgressCountEl.textContent = inProgress;
+        if (totalTimeEl) totalTimeEl.textContent = totalTime;
     }
 
     escapeHtml(text) {
@@ -1183,6 +1413,7 @@ class TodoApp {
         }
 
         const activeTodos = this.todos.filter(t => !t.completed && t.time > 0);
+        
         if (activeTodos.length === 0) {
             this.showNotification('時間が設定された未完了タスクがありません', 'info');
             return;
@@ -1206,11 +1437,16 @@ class TodoApp {
             }
             
             // 期限がある場合は期限でソート
-            if (a.deadline && b.deadline) {
-                return new Date(a.deadline) - new Date(b.deadline);
-            } else if (a.deadline) {
+            const aNormalizedDeadline = this.normalizeDeadline(a.deadline);
+            const bNormalizedDeadline = this.normalizeDeadline(b.deadline);
+            
+            if (aNormalizedDeadline && bNormalizedDeadline) {
+                const aDate = new Date(aNormalizedDeadline);
+                const bDate = new Date(bNormalizedDeadline);
+                return aDate - bDate;
+            } else if (aNormalizedDeadline) {
                 return -1;
-            } else if (b.deadline) {
+            } else if (bNormalizedDeadline) {
                 return 1;
             }
             
@@ -1337,6 +1573,28 @@ class TodoApp {
         return days[day];
     }
 
+    // 期限の日付形式を統一するヘルパー関数
+    normalizeDeadline(deadline) {
+        if (!deadline) return '';
+        
+        // 既にYYYY-MM-DD形式の場合はそのまま返す
+        if (/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
+            return deadline;
+        }
+        
+        // 日付オブジェクトに変換してYYYY-MM-DD形式に戻す
+        const date = new Date(deadline);
+        if (isNaN(date.getTime())) {
+            return '';
+        }
+        
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        
+        return `${year}-${month}-${day}`;
+    }
+
     parseDateFromDisplay(displayDate) {
         // "M/D" 形式から "YYYY-MM-DD" 形式に変換
         const parts = displayDate.split('/');
@@ -1349,12 +1607,25 @@ class TodoApp {
         return null;
     }
 
-    setupEventListeners() {
+        setupEventListeners() {
         // タスク追加
-        document.getElementById('addTodo').addEventListener('click', () => this.handleAddTodo());
-        document.getElementById('todoInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.handleAddTodo();
-        });
+        const addTodoBtn = document.getElementById('addTodo');
+        const todoInput = document.getElementById('todoInput');
+        
+        if (addTodoBtn) {
+            addTodoBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.handleAddTodo();
+            });
+        }
+        
+        if (todoInput) {
+            todoInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.handleAddTodo();
+                }
+            });
+        }
 
         // フィルター
         document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -1437,6 +1708,50 @@ class TodoApp {
         document.getElementById('editCategory').addEventListener('change', (e) => {
             this.updateEditParentOptions(e.target.value);
         });
+        
+        // コメント機能のイベントリスナー
+        const addCommentBtn = document.getElementById('addCommentBtn');
+        const saveCommentBtn = document.getElementById('saveComment');
+        const cancelCommentBtn = document.getElementById('cancelComment');
+        
+                if (addCommentBtn) {
+            addCommentBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const commentSection = document.getElementById('commentSection');
+                if (commentSection) {
+                    const currentDisplay = commentSection.style.display;
+                    commentSection.style.display = currentDisplay === 'none' ? 'block' : 'none';
+                    if (commentSection.style.display === 'block') {
+                        const todoComment = document.getElementById('todoComment');
+                        if (todoComment) {
+                            todoComment.focus();
+                        }
+                    }
+                }
+            });
+        }
+        
+        if (saveCommentBtn) {
+            saveCommentBtn.addEventListener('click', () => {
+                const commentSection = document.getElementById('commentSection');
+                if (commentSection) {
+                    commentSection.style.display = 'none';
+                }
+            });
+        }
+        
+        if (cancelCommentBtn) {
+            cancelCommentBtn.addEventListener('click', () => {
+                const todoComment = document.getElementById('todoComment');
+                const commentSection = document.getElementById('commentSection');
+                if (todoComment) {
+                    todoComment.value = '';
+                }
+                if (commentSection) {
+                    commentSection.style.display = 'none';
+                }
+            });
+        }
     }
 
     handleAddTodo() {
@@ -1447,16 +1762,17 @@ class TodoApp {
         const timeInput = document.getElementById('todoTime');
         const deadlineInput = document.getElementById('todoDeadline');
         
-        const text = input.value.trim();
-        const category = categoryInput.value || 'major';
-        const parentId = parentInput.value ? parseInt(parentInput.value) : null;
-        const priority = priorityInput.value || 'medium';
-        const status = document.getElementById('todoStatus').value || 'not-started';
-        const time = parseFloat(timeInput.value) || 0;
-        const deadline = deadlineInput.value || '';
+        const text = input ? input.value.trim() : '';
+        const category = categoryInput ? categoryInput.value || 'major' : 'major';
+        const parentId = parentInput && parentInput.value ? parseInt(parentInput.value) : null;
+        const priority = priorityInput ? priorityInput.value || 'medium' : 'medium';
+        const status = document.getElementById('todoStatus') ? document.getElementById('todoStatus').value || 'not-started' : 'not-started';
+        const time = timeInput ? parseFloat(timeInput.value) || 0 : 0;
+        const deadline = deadlineInput ? deadlineInput.value || '' : '';
+        const comment = document.getElementById('todoComment') ? document.getElementById('todoComment').value || '' : '';
         
         if (text) {
-            this.addTodo(text, category, parentId, priority, status, time, deadline);
+            this.addTodo(text, category, parentId, priority, status, time, deadline, comment);
             input.value = '';
             categoryInput.value = '';
             parentInput.value = '';
@@ -1464,6 +1780,8 @@ class TodoApp {
             document.getElementById('todoStatus').value = '';
             timeInput.value = '';
             deadlineInput.value = '';
+            document.getElementById('todoComment').value = '';
+            document.getElementById('commentSection').style.display = 'none';
             input.focus();
         }
     }
@@ -1472,7 +1790,10 @@ class TodoApp {
 // アプリケーションの初期化
 let todoApp;
 document.addEventListener('DOMContentLoaded', () => {
-    todoApp = new TodoApp();
+    // 少し遅延を入れてDOMの完全な読み込みを待つ
+    setTimeout(() => {
+        todoApp = new TodoApp();
+    }, 100);
 });
 
 // キーボードショートカット
@@ -1480,20 +1801,25 @@ document.addEventListener('keydown', (e) => {
     // Ctrl/Cmd + Enter でタスク追加
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
-        todoApp.handleAddTodo();
+        if (todoApp) {
+            todoApp.handleAddTodo();
+        }
     }
     
     // Escape で入力フィールドをクリア
     if (e.key === 'Escape') {
-        document.getElementById('todoInput').value = '';
-        document.getElementById('todoInput').blur();
+        const todoInput = document.getElementById('todoInput');
+        if (todoInput) {
+            todoInput.value = '';
+            todoInput.blur();
+        }
     }
 });
 
 // ページ離脱時の警告（未保存の変更がある場合）
 window.addEventListener('beforeunload', (e) => {
     const input = document.getElementById('todoInput');
-    if (input.value.trim()) {
+    if (input && input.value.trim()) {
         e.preventDefault();
         e.returnValue = '入力中のタスクがあります。ページを離れますか？';
     }
